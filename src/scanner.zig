@@ -1,18 +1,21 @@
 const std = @import("std");
-const token = @import("token.zig");
+const log_error = @import("main.zig").log_error;
+
+const Object = @import("object.zig").Object;
+const Token = @import("token.zig").Token;
 const TokenType = @import("token_types.zig").TokenType;
 
 pub const Scanner = struct {
     source: []const u8,
-    tokens: std.ArrayList(token.Token),
+    tokens: std.ArrayList(Token),
     start: u32,
     current: u32,
     line: u32,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8) !Scanner {
-        return Scanner {
+        return Scanner{
             .source = source,
-            .tokens = std.ArrayList(token.Token).init(allocator),
+            .tokens = std.ArrayList(Token).init(allocator),
             .start = 0,
             .current = 0,
             .line = 1,
@@ -23,7 +26,7 @@ pub const Scanner = struct {
         try self.tokens.deinit();
     }
 
-    pub fn scanTokens(self: *Scanner) !std.ArrayList(token.Token) {
+    pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
         while (!self.isAtEnd()) {
             self.start = self.current;
             try self.scanToken();
@@ -32,8 +35,8 @@ pub const Scanner = struct {
             .token_type = .EOF,
             .lexeme = "",
             .literal = null,
-            .line = self.line,}
-        );
+            .line = self.line,
+        });
         return self.tokens;
     }
 
@@ -46,17 +49,17 @@ pub const Scanner = struct {
         self.current += 1;
         return self.source[previous];
     }
-    
+
     fn peek(self: Scanner) u8 {
         if (self.isAtEnd()) return 0;
         return self.source[self.current];
     }
-    
+
     fn peekNext(self: Scanner) u8 {
         if (self.current + 1 >= self.source.len) return 0;
-        return self.source[self.current+1];
+        return self.source[self.current + 1];
     }
-    
+
     fn match(self: *Scanner, expected: u8) bool {
         if (self.isAtEnd()) return false;
         if (self.source[self.current] != expected) return false;
@@ -64,14 +67,13 @@ pub const Scanner = struct {
         return true;
     }
 
-    fn addToken(self: *Scanner, token_type: TokenType, literal: ?token.Literal) !void {
-        try self.tokens.append( .{
+    fn addToken(self: *Scanner, token_type: TokenType, literal: ?Object) !void {
+        try self.tokens.append(.{
             .token_type = token_type,
             .lexeme = self.source[self.start..self.current],
             .literal = literal,
             .line = self.line,
-            }
-        );
+        });
         return;
     }
 
@@ -88,15 +90,15 @@ pub const Scanner = struct {
             '+' => try self.addToken(.PLUS, null),
             ';' => try self.addToken(.SEMICOLON, null),
             '*' => try self.addToken(.STAR, null),
-            '!' => try self.addToken( if (self.match('=')) .BANG_EQUAL else .BANG, null),
-            '=' => try self.addToken( if (self.match('=')) .EQUAL_EQUAL else .EQUAL, null),
-            '<' => try self.addToken( if (self.match('=')) .LESS_EQUAL else .LESS, null),
-            '>' => try self.addToken( if (self.match('=')) .GREATER_EQUAL else .GREATER, null),
+            '!' => try self.addToken(if (self.match('=')) .BANG_EQUAL else .BANG, null),
+            '=' => try self.addToken(if (self.match('=')) .EQUAL_EQUAL else .EQUAL, null),
+            '<' => try self.addToken(if (self.match('=')) .LESS_EQUAL else .LESS, null),
+            '>' => try self.addToken(if (self.match('=')) .GREATER_EQUAL else .GREATER, null),
             '/' => if (self.match('/')) {
-                        while (self.peek() != '\n' and !self.isAtEnd()) _ = self.advance();
-                    } else {
-                        try self.addToken(.SLASH, null);
-                    },
+                while (self.peek() != '\n' and !self.isAtEnd()) _ = self.advance();
+            } else {
+                try self.addToken(.SLASH, null);
+            },
             ' ', '\r', '\t', '\n' => self.line += 1,
             '"' => try self.string(),
             else => {
@@ -105,7 +107,7 @@ pub const Scanner = struct {
                 } else if (isAlpha(c)) {
                     try self.identifier();
                 } else {
-                    std.log.err("{} Unexpected character.", .{self.line});
+                    log_error(self.line, "Unexpected character.");
                 }
             },
         }
@@ -118,11 +120,11 @@ pub const Scanner = struct {
             _ = self.advance();
         }
         if (self.isAtEnd()) {
-            std.log.err("{} Unterminated string.", .{self.line});
+            log_error(self.line, "Unterminated string.");
             return;
         }
         _ = self.advance();
-        var literal: token.Literal = .{.string = self.source[self.start+1..self.current-1]};
+        var literal: Object = .{ .string = self.source[self.start + 1 .. self.current - 1] };
         try self.addToken(.STRING, literal);
         return;
     }
@@ -131,9 +133,11 @@ pub const Scanner = struct {
         while (isDigit(self.peek())) _ = self.advance();
         if (self.peek() == '.' and isDigit(self.peekNext())) _ = self.advance();
         while (isDigit(self.peek())) _ = self.advance();
-        var num: f64 = try std.fmt.parseFloat(f64, self.source[self.start..self.current]);
-
-        try self.addToken(.NUMBER, token.Literal{.number = num});
+        var num: f64 = std.fmt.parseFloat(f64, self.source[self.start..self.current]) catch {
+            log_error(self.line, "Unable to parse float");
+            return;
+        };
+        try self.addToken(.NUMBER, Object{ .number = num });
     }
 
     fn identifier(self: *Scanner) !void {
@@ -142,7 +146,6 @@ pub const Scanner = struct {
         try self.addToken(identifier_token, null);
         return;
     }
-
 };
 
 fn matchIdentifier(str: []const u8) ?TokenType {
@@ -169,9 +172,7 @@ fn isDigit(c: u8) bool {
 }
 
 fn isAlpha(c: u8) bool {
-    return (c >= 'a' and c <= 'z')
-           or (c >= 'A' and c <= 'Z')
-           or c == '_';
+    return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or c == '_';
 }
 
 fn isAlphaNumeric(c: u8) bool {
