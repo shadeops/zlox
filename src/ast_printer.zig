@@ -3,7 +3,7 @@ const Token = @import("token.zig").Token;
 const Expr = @import("expr.zig");
 const Object = @import("object.zig").Object;
 
-fn castToSelf(comptime T: type, ptr: * anyopaque) *T {
+fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     const alignment = @alignOf(T);
     const self = @ptrCast(*T, @alignCast(alignment, ptr));
     return self;
@@ -132,7 +132,40 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
-    var expression = Expr.Binary.init(Expr.Unary.init(.{ .token_type = .MINUS, .lexeme = "-", .literal = null, .line = 1 }, Expr.Literal.init(.{ .token_type = .NUMBER, .lexeme = "123", .literal = .{ .number = 123 }, .line = 1 }).toExpr()).toExpr(), .{ .token_type = .STAR, .lexeme = "*", .literal = null, .line = 1 }, Expr.Grouping.init(Expr.Literal.init(.{ .token_type = .NUMBER, .lexeme = "45.67", .literal = .{ .number = 45.67 }, .line = 1 }).toExpr()).toExpr()).toExpr();
+    var expression = Expr.Binary.init(
+        Expr.Unary.init(
+            Token{
+                .token_type = .MINUS,
+                .lexeme = "-",
+                .literal = null,
+                .line = 1,
+            },
+            Expr.Literal.init(
+                Token{
+                    .token_type = .NUMBER,
+                    .lexeme = "123",
+                    .literal = .{ .number = 123 },
+                    .line = 1,
+                },
+            ).toExpr(),
+        ).toExpr(),
+        Token{
+            .token_type = .STAR,
+            .lexeme = "*",
+            .literal = null,
+            .line = 1,
+        },
+        Expr.Grouping.init(
+            Expr.Literal.init(
+                Token{
+                    .token_type = .NUMBER,
+                    .lexeme = "45.67",
+                    .literal = .{ .number = 45.67 },
+                    .line = 1,
+                },
+            ).toExpr(),
+        ).toExpr(),
+    ).toExpr();
     var printer = AstPrinter.init(allocator);
     var printer_interface = printer.interface();
     try printer_interface.visitExpr(&expression);
