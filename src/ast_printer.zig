@@ -3,6 +3,12 @@ const Token = @import("token.zig").Token;
 const Expr = @import("expr.zig");
 const Object = @import("object.zig").Object;
 
+fn castToSelf(comptime T: type, ptr: * anyopaque) *T {
+    const alignment = @alignOf(T);
+    const self = @ptrCast(*T, @alignCast(alignment, ptr));
+    return self;
+}
+
 const AstPrinter = struct {
     const Self = @This();
     strings: std.ArrayList([]const u8),
@@ -44,8 +50,7 @@ const AstPrinter = struct {
     }
 
     pub fn print(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*Self, @alignCast(alignment, ptr));
+        const self = castToSelf(Self, ptr);
         var iface = self.interface();
         try expr.accept(&iface);
         for (self.strings.items) |item| {
@@ -60,8 +65,7 @@ const AstPrinter = struct {
     }
 
     fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Binary) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*Self, @alignCast(alignment, ptr));
+        const self = castToSelf(Self, ptr);
         var iface = self.interface();
         try self.strings.append("(");
         try self.strings.append(expr.operator.lexeme);
@@ -81,16 +85,14 @@ const AstPrinter = struct {
         _ = expr;
     }
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) !void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*Self, @alignCast(alignment, ptr));
+        const self = castToSelf(Self, ptr);
         var iface = self.interface();
         try self.strings.append("(group ");
         try expr.expression.accept(&iface);
         try self.strings.append(")");
     }
     fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) !void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*Self, @alignCast(alignment, ptr));
+        const self = castToSelf(Self, ptr);
         if (expr.value.literal) |_| {
             var string = try expr.value.toString(self.allocator);
             try self.strings.append(string);
@@ -112,8 +114,7 @@ const AstPrinter = struct {
         _ = expr;
     }
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) !void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*Self, @alignCast(alignment, ptr));
+        const self = castToSelf(Self, ptr);
         var iface = self.interface();
         try self.strings.append("(");
         try self.strings.append(expr.operator.lexeme);

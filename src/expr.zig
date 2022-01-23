@@ -78,6 +78,12 @@ pub const Expr = struct {
     }
 };
 
+fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
+    const alignment = @alignOf(T);
+    const self = @ptrCast(*const T, @alignCast(alignment, ptr));
+    return self;
+}
+
 pub const Assign = struct {
     const Self = @This();
     name: Token,
@@ -98,8 +104,7 @@ pub const Assign = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitAssignExpr(self);
     }
 };
@@ -126,8 +131,7 @@ pub const Binary = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitBinaryExpr(self);
     }
 };
@@ -154,8 +158,7 @@ pub const Call = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitCallExpr(self);
     }
 };
@@ -180,8 +183,7 @@ pub const Get = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitGetExpr(self);
     }
 };
@@ -204,8 +206,7 @@ pub const Grouping = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitGroupingExpr(self);
     }
 };
@@ -228,8 +229,7 @@ pub const Literal = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitLiteralExpr(self);
     }
 };
@@ -256,8 +256,7 @@ pub const Logical = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitLogicalExpr(self);
     }
 };
@@ -284,8 +283,7 @@ pub const Set = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitSetExpr(self);
     }
 };
@@ -310,8 +308,7 @@ pub const Super = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitSuperExpr(self);
     }
 };
@@ -334,8 +331,7 @@ pub const This = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitThisExpr(self);
     }
 };
@@ -360,8 +356,7 @@ pub const Unary = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitUnaryExpr(self);
     }
 };
@@ -384,8 +379,7 @@ pub const Variable = struct {
     }
 
     fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const alignment = @alignOf(Self);
-        const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
+        const self = castToConstSelf(Self, ptr);
         try visitor.visitVariableExpr(self);
     }
 };
