@@ -255,7 +255,7 @@ pub const Logical = struct {
         };
     }
 
-    fn accept(ptr: *const anyopaque, visitor: VisitorInterface) anyerror!void {
+    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
         const alignment = @alignOf(Self);
         const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
         try visitor.visitLogicalExpr(self);
@@ -283,7 +283,7 @@ pub const Set = struct {
         };
     }
 
-    fn accept(ptr: *const anyopaque, visitor: VisitorInterface) anyerror!void {
+    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
         const alignment = @alignOf(Self);
         const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
         try visitor.visitSetExpr(self);
@@ -309,7 +309,7 @@ pub const Super = struct {
         };
     }
 
-    fn accept(ptr: *const anyopaque, visitor: VisitorInterface) anyerror!void {
+    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
         const alignment = @alignOf(Self);
         const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
         try visitor.visitSuperExpr(self);
@@ -333,7 +333,7 @@ pub const This = struct {
         };
     }
 
-    fn accept(ptr: *const anyopaque, visitor: VisitorInterface) anyerror!void {
+    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
         const alignment = @alignOf(Self);
         const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
         try visitor.visitThisExpr(self);
@@ -383,7 +383,7 @@ pub const Variable = struct {
         };
     }
 
-    fn accept(ptr: *const anyopaque, visitor: VisitorInterface) anyerror!void {
+    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
         const alignment = @alignOf(Self);
         const self = @ptrCast(*const Self, @alignCast(alignment, ptr));
         try visitor.visitVariableExpr(self);
