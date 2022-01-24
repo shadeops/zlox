@@ -14,12 +14,4 @@ pub const Token = struct {
         self.literal = literal;
         self.line = line;
     }
-
-    pub fn toString(self: Token, allocator: std.mem.Allocator) ![]const u8 {
-        if (self.token_type == .STRING) {
-            return try std.fmt.allocPrint(allocator, "{s}", .{self.literal.?.string});
-        } else {
-            return try std.fmt.allocPrint(allocator, "{d}", .{self.literal.?.number});
-        }
-    }
 };

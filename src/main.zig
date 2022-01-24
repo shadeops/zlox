@@ -2,31 +2,27 @@ const std = @import("std");
 const scanner = @import("scanner.zig");
 const ast_printer = @import("ast_printer.zig");
 
+const Parser = @import("parser.zig").Parser;
+const Token = @import("token.zig").Token;
+
 var had_error: bool = false;
 
-pub fn log_error(line: u32, msg: []const u8) void {
-    std.log.err("{} {s}", .{ line, msg });
-    had_error = true;
-    return;
-}
-
 pub fn main() anyerror!void {
-    try ast_printer.main();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-    //var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    //const allocator = gpa.allocator();
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
 
-    //const args = try std.process.argsAlloc(allocator);
-    //defer std.process.argsFree(allocator, args);
-
-    //if (args.len > 2) {
-    //    std.log.err("Usage: zlox [script]", .{});
-    //    std.process.exit(64);
-    //} else if (args.len == 2) {
-    //    try runFile(allocator, args[1]);
-    //} else {
-    //    try runPrompt(allocator);
-    //}
+    if (args.len > 2) {
+        std.log.err("Usage: zlox [script]", .{});
+        std.process.exit(64);
+    } else if (args.len == 2) {
+        try runFile(allocator, args[1]);
+    } else {
+        try runPrompt(allocator);
+    }
 }
 
 fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
@@ -81,12 +77,48 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
+    defer token_scanner.deinit();
     var tokens = try token_scanner.scanTokens();
-    std.log.info("Scanned tokens:", .{});
-    for (tokens.items) |item, i| {
-        std.log.info("  {}: {s}", .{ i, item.lexeme });
-    }
+
+    var parser_arena = std.heap.ArenaAllocator.init(allocator);
+    defer parser_arena.deinit();
+    var parser = Parser.init(parser_arena.allocator(), tokens);
+    var expression = parser.parse() orelse {
+        std.log.err("parsing error\n", .{});
+        return;
+    };
+
+    if (had_error) return;
+    
+    var printer = ast_printer.AstPrinter.init(allocator);
+    defer printer.deinit();
+    var printer_interface = printer.interface();
+    try printer_interface.visitExpr(&expression);
+
     return;
+}
+
+pub fn line_error(line: u32, message: []const u8) void {
+    report(line, "", message);
+}
+
+pub fn token_error(token: Token, message: []const u8) !void {
+    if (token.token_type == .EOF) {
+        report(token.line, " at end", message);
+    } else {
+        // NOTE: assume lexeme is less than 1024 bytes.
+        var buf: [1024]u8 = undefined;
+        report(
+            token.line,
+            try std.fmt.bufPrint(buf[0..], " at '{s}'", .{token.lexeme}),
+            message,
+        );
+    }
+}
+
+pub fn report(line: u32, where: []const u8, message: []const u8) void {
+    std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });
+    had_error = true;
 }
 
 test "basic test" {

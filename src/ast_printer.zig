@@ -1,7 +1,7 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
-const Expr = @import("expr.zig");
 const Object = @import("object.zig").Object;
+const Expr = @import("expr.zig");
 
 fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     const alignment = @alignOf(T);
@@ -9,7 +9,7 @@ fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     return self;
 }
 
-const AstPrinter = struct {
+pub const AstPrinter = struct {
     const Self = @This();
     strings: std.ArrayList([]const u8),
     string_buffer: std.ArrayList([]const u8),
@@ -23,10 +23,10 @@ const AstPrinter = struct {
         };
     }
 
-    pub fn deinit(self: *AstPrinter) !void {
+    pub fn deinit(self: *AstPrinter) void {
         self.strings.deinit();
         for (self.string_buffer.items) |item| {
-            try self.allocator.free(item);
+            self.allocator.free(item);
         }
         self.string_buffer.deinit();
     }
@@ -93,8 +93,8 @@ const AstPrinter = struct {
     }
     fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) !void {
         const self = castToSelf(Self, ptr);
-        if (expr.value.literal) |_| {
-            var string = try expr.value.toString(self.allocator);
+        if (expr.value) |v| {
+            var string = try v.toString(self.allocator);
             try self.strings.append(string);
             try self.string_buffer.append(string);
         } else {
@@ -140,14 +140,7 @@ pub fn main() anyerror!void {
                 .literal = null,
                 .line = 1,
             },
-            Expr.Literal.init(
-                Token{
-                    .token_type = .NUMBER,
-                    .lexeme = "123",
-                    .literal = .{ .number = 123 },
-                    .line = 1,
-                },
-            ).toExpr(),
+            Expr.Literal.init(Object.initNumber(123)).toExpr(),
         ).toExpr(),
         Token{
             .token_type = .STAR,
@@ -156,14 +149,7 @@ pub fn main() anyerror!void {
             .line = 1,
         },
         Expr.Grouping.init(
-            Expr.Literal.init(
-                Token{
-                    .token_type = .NUMBER,
-                    .lexeme = "45.67",
-                    .literal = .{ .number = 45.67 },
-                    .line = 1,
-                },
-            ).toExpr(),
+            Expr.Literal.init(Object.initNumber(45.67)).toExpr(),
         ).toExpr(),
     ).toExpr();
     var printer = AstPrinter.init(allocator);

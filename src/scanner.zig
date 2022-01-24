@@ -1,5 +1,5 @@
 const std = @import("std");
-const log_error = @import("main.zig").log_error;
+const line_error = @import("main.zig").line_error;
 
 const Object = @import("object.zig").Object;
 const Token = @import("token.zig").Token;
@@ -22,8 +22,8 @@ pub const Scanner = struct {
         };
     }
 
-    pub fn deinit(self: Scanner) !void {
-        try self.tokens.deinit();
+    pub fn deinit(self: Scanner) void {
+        self.tokens.deinit();
     }
 
     pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
@@ -107,7 +107,7 @@ pub const Scanner = struct {
                 } else if (isAlpha(c)) {
                     try self.identifier();
                 } else {
-                    log_error(self.line, "Unexpected character.");
+                    line_error(self.line, "Unexpected character.");
                 }
             },
         }
@@ -120,11 +120,11 @@ pub const Scanner = struct {
             _ = self.advance();
         }
         if (self.isAtEnd()) {
-            log_error(self.line, "Unterminated string.");
+            line_error(self.line, "Unterminated string.");
             return;
         }
         _ = self.advance();
-        var literal: Object = .{ .string = self.source[self.start + 1 .. self.current - 1] };
+        var literal = Object.initString(self.source[self.start + 1 .. self.current - 1]);
         try self.addToken(.STRING, literal);
         return;
     }
@@ -134,10 +134,10 @@ pub const Scanner = struct {
         if (self.peek() == '.' and isDigit(self.peekNext())) _ = self.advance();
         while (isDigit(self.peek())) _ = self.advance();
         var num: f64 = std.fmt.parseFloat(f64, self.source[self.start..self.current]) catch {
-            log_error(self.line, "Unable to parse float");
+            line_error(self.line, "Unable to parse float");
             return;
         };
-        try self.addToken(.NUMBER, Object{ .number = num });
+        try self.addToken(.NUMBER, Object.initNumber(num));
     }
 
     fn identifier(self: *Scanner) !void {

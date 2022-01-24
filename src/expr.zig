@@ -213,9 +213,9 @@ pub const Grouping = struct {
 
 pub const Literal = struct {
     const Self = @This();
-    value: Token,
+    value: ?Object = null,
 
-    pub fn init(value: Token) Self {
+    pub fn init(value: Object) Self {
         return .{
             .value = value,
         };
