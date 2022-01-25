@@ -89,7 +89,7 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     };
 
     if (had_error) return;
-    
+
     var printer = ast_printer.AstPrinter.init(allocator);
     defer printer.deinit();
     var printer_interface = printer.interface();

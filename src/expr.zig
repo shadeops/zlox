@@ -96,6 +96,12 @@ pub const Assign = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, name: Token, value: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(name, value);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -121,6 +127,17 @@ pub const Binary = struct {
             .operator = operator,
             .right = right,
         };
+    }
+
+    pub fn create(
+        allocator: std.mem.Allocator,
+        left: Expr,
+        operator: Token,
+        right: Expr,
+    ) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(left, operator, right);
+        return ptr;
     }
 
     pub fn toExpr(self: *const Self) Expr {
@@ -150,6 +167,17 @@ pub const Call = struct {
         };
     }
 
+    pub fn create(
+        allocator: std.mem.Allocator,
+        callee: Expr,
+        paren: Token,
+        arguments: std.ArrayList(Expr),
+    ) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(callee, paren, arguments);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -175,6 +203,12 @@ pub const Get = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, object: Expr, name: Token) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(object, name);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -198,6 +232,12 @@ pub const Grouping = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, expression: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(expression);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -215,10 +255,16 @@ pub const Literal = struct {
     const Self = @This();
     value: ?Object = null,
 
-    pub fn init(value: Object) Self {
+    pub fn init(value: ?Object) Self {
         return .{
             .value = value,
         };
+    }
+
+    pub fn create(allocator: std.mem.Allocator, value: ?Object) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(value);
+        return ptr;
     }
 
     pub fn toExpr(self: *const Self) Expr {
@@ -248,6 +294,12 @@ pub const Logical = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, left: Expr, operator: Token, right: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(left, operator, right);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -275,6 +327,12 @@ pub const Set = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, object: Expr, name: Token, value: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(object, name, value);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -300,6 +358,12 @@ pub const Super = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, keyword: Token, method: Token) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(keyword, method);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -321,6 +385,12 @@ pub const This = struct {
         return .{
             .keyword = keyword,
         };
+    }
+
+    pub fn create(allocator: std.mem.Allocator, keyword: Token) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(keyword);
+        return ptr;
     }
 
     pub fn toExpr(self: *const Self) Expr {
@@ -348,6 +418,12 @@ pub const Unary = struct {
         };
     }
 
+    pub fn create(allocator: std.mem.Allocator, operator: Token, right: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(operator, right);
+        return ptr;
+    }
+
     pub fn toExpr(self: *const Self) Expr {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
@@ -369,6 +445,12 @@ pub const Variable = struct {
         return .{
             .name = name,
         };
+    }
+
+    pub fn create(allocator: std.mem.Allocator, name: Token, value: Expr) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self.init(name, value);
+        return ptr;
     }
 
     pub fn toExpr(self: *const Self) Expr {

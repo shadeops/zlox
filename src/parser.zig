@@ -6,7 +6,7 @@ const Object = @import("object.zig").Object;
 
 const token_error = @import("main.zig").token_error;
 
-const ParseError = error {
+const ParseError = error{
     Paren,
     Expression,
     OutOfMemory,
@@ -22,7 +22,7 @@ pub const Parser = struct {
         return Parser{
             .tokens = tokens,
             .current = 0,
-            .allocator = allocator, 
+            .allocator = allocator,
         };
     }
 
@@ -42,9 +42,7 @@ pub const Parser = struct {
         while (self.match(&.{ .BANG_EQUAL, .EQUAL_EQUAL })) {
             var operator = self.previous();
             var right = try self.comparison();
-            var expr_ptr = try self.allocator.create(Expr.Binary);
-            expr_ptr.* = Expr.Binary.init(expr, operator, right);
-            expr = expr_ptr.toExpr();
+            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
         }
 
         return expr;
@@ -56,9 +54,7 @@ pub const Parser = struct {
         while (self.match(&.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
             var operator = self.previous();
             var right = try self.term();
-            var expr_ptr = try self.allocator.create(Expr.Binary);
-            expr_ptr.* = Expr.Binary.init(expr, operator, right);
-            expr = expr_ptr.toExpr();
+            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
         }
 
         return expr;
@@ -70,9 +66,7 @@ pub const Parser = struct {
         while (self.match(&.{ .MINUS, .PLUS })) {
             var operator = self.previous();
             var right = try self.factor();
-            var expr_ptr = try self.allocator.create(Expr.Binary);
-            expr_ptr.* = Expr.Binary.init(expr, operator, right);
-            expr = expr_ptr.toExpr();
+            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
         }
 
         return expr;
@@ -84,9 +78,7 @@ pub const Parser = struct {
         while (self.match(&.{ .SLASH, .STAR })) {
             var operator = self.previous();
             var right = try self.unary();
-            var expr_ptr = try self.allocator.create(Expr.Binary);
-            expr_ptr.* = Expr.Binary.init(expr, operator, right);
-            expr = expr_ptr.toExpr();
+            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
         }
 
         return expr;
@@ -96,43 +88,27 @@ pub const Parser = struct {
         if (self.match(&.{ .BANG, .MINUS })) {
             var operator = self.previous();
             var right = try self.unary();
-            var expr_ptr = try self.allocator.create(Expr.Unary);
-            expr_ptr.* = Expr.Unary.init(operator, right);
-            return expr_ptr.toExpr();
+            return Expr.Unary.create(self.allocator, operator, right).toExpr();
         }
 
         return try self.primary();
     }
 
     fn primary(self: *Self) ParseError!Expr.Expr {
-        if (self.match(&.{.FALSE})) {
-            var expr_ptr = try self.allocator.create(Expr.Literal);
-            expr_ptr.* = Expr.Literal.init(Object.initBoolean(false));
-            return expr_ptr.toExpr();
-        }
-        if (self.match(&.{.TRUE})) {
-            var expr_ptr = try self.allocator.create(Expr.Literal);
-            expr_ptr.* = Expr.Literal.init(Object.initBoolean(true));
-            return expr_ptr.toExpr();
-        }
-        if (self.match(&.{.NIL})){
-            var expr_ptr = try self.allocator.create(Expr.Literal);
-            expr_ptr.* = Expr.Literal{};
-            return expr_ptr.toExpr();
-        }
+        if (self.match(&.{.FALSE}))
+            return Expr.Literal.create(self.allocator, Object.initBoolean(false)).toExpr();
+        if (self.match(&.{.TRUE}))
+            return Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
+        if (self.match(&.{.NIL}))
+            return Expr.Literal.create(self.allocator, null).toExpr();
 
-        if (self.match(&.{ .NUMBER, .STRING })) {
-            var expr_ptr = try self.allocator.create(Expr.Literal);
-            expr_ptr.* = Expr.Literal.init(self.previous().literal.?);
-            return expr_ptr.toExpr();
-        }
+        if (self.match(&.{ .NUMBER, .STRING }))
+            return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
 
         if (self.match(&.{.LEFT_PAREN})) {
             var expr = try self.expression();
             _ = try self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
-            var expr_ptr = try self.allocator.create(Expr.Grouping);
-            expr_ptr.* = Expr.Grouping.init(expr);
-            return expr_ptr.toExpr();
+            return Expr.Grouping.create(self.allocator, expr).toExpr();
         }
 
         return ParseError.Expression;
@@ -195,7 +171,6 @@ pub const Parser = struct {
             self.advance();
         }
     }
-
 };
 
 test "Parser.check" {
