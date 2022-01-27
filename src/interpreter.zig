@@ -51,18 +51,7 @@ pub const Interpreter = struct {
             runtimeError(@errorName(err));
             return;
         };
-        const stdout = std.io.getStdOut();
-        const writer = stdout.writer();
-        if (value == null)  {
-            writer.print("nil\n", .{}) catch unreachable;
-            return;
-        }
-        writer.print("{s}\n", .{value.?.toString(self.allocator)}) catch unreachable;
-    }
-    
-    fn visitExpr(ptr: *anyopaque, expr: *const Expr.Expr) !void {
-        _ = ptr;
-        _ = expr;
+        self.stringify(value);
     }
 
     fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) !void {
@@ -77,34 +66,6 @@ pub const Interpreter = struct {
         var right = try self.evaluate(expr.right);
 
         switch (expr.operator.token_type) {
-            .MINUS => {
-                try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number - right.?.value.number);
-            },
-            .SLASH => {
-                try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number / right.?.value.number);
-            },
-            .STAR => {
-                try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number * right.?.value.number);
-            },
-            .PLUS => {
-                if (left == null or right == null) return error.OperandError;
-                if (left.?.vtype == .NUMBER and right.?.vtype == .NUMBER) {
-                    self.ret = Object.initNumber(left.?.value.number + right.?.value.number);
-                    return;
-                }
-                if (left.?.vtype == .STRING and right.?.vtype == .STRING) {
-//                    var str = self.allocator.alloc(u8, left.?.value.string.len + right.?.value.string.len);
-                    var strs = [_][]const u8{left.?.value.string, right.?.value.string};
-                    var new_str = std.mem.concat(self.allocator, u8, &strs) catch unreachable;
-                    self.ret = Object.initString(new_str);
-                    return;
-                }
-                return error.OperandError;
-                //std.info.err("Operand must be two numbers or two strings.", .{});
-            },
             .GREATER => {
                 try checkNumberOperands(expr.operator, left, right);
                 self.ret = Object.initBoolean(left.?.value.number > right.?.value.number);
@@ -120,6 +81,33 @@ pub const Interpreter = struct {
             .LESS_EQUAL => {
                 try checkNumberOperands(expr.operator, left, right);
                 self.ret = Object.initBoolean(left.?.value.number <= right.?.value.number);
+            },
+            .MINUS => {
+                try checkNumberOperands(expr.operator, left, right);
+                self.ret = Object.initNumber(left.?.value.number - right.?.value.number);
+            },
+            .PLUS => {
+                if (left == null or right == null) return error.OperandError;
+                if (left.?.vtype == .NUMBER and right.?.vtype == .NUMBER) {
+                    self.ret = Object.initNumber(left.?.value.number + right.?.value.number);
+                    return;
+                }
+                if (left.?.vtype == .STRING and right.?.vtype == .STRING) {
+                    var strs = [_][]const u8{ left.?.value.string, right.?.value.string };
+                    var new_str = std.mem.concat(self.allocator, u8, &strs) catch unreachable;
+                    self.ret = Object.initString(new_str);
+                    return;
+                }
+                return error.OperandError;
+                //std.info.err("Operand must be two numbers or two strings.", .{});
+            },
+            .SLASH => {
+                try checkNumberOperands(expr.operator, left, right);
+                self.ret = Object.initNumber(left.?.value.number / right.?.value.number);
+            },
+            .STAR => {
+                try checkNumberOperands(expr.operator, left, right);
+                self.ret = Object.initNumber(left.?.value.number * right.?.value.number);
             },
             .BANG_EQUAL => self.ret = Object.initBoolean(!isEqual(left, right)),
             .EQUAL_EQUAL => self.ret = Object.initBoolean(isEqual(left, right)),
@@ -164,7 +152,7 @@ pub const Interpreter = struct {
             .BANG => {
                 self.ret = Object.initBoolean(!isTruthy(right));
             },
-            .MINUS => { 
+            .MINUS => {
                 try checkNumberOperand(expr.operator, right);
                 self.ret = Object.initNumber(-right.?.value.number);
             },
@@ -173,7 +161,7 @@ pub const Interpreter = struct {
             },
         }
     }
-    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) !void{
+    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) !void {
         _ = ptr;
         _ = expr;
     }
@@ -184,15 +172,15 @@ pub const Interpreter = struct {
         //std.info.err("Operand must be a number.", .{});
         return error.OperandError;
     }
-    
+
     fn checkNumberOperands(operator: Token, left: ?Object, right: ?Object) !void {
         _ = operator;
-        if ((left != null and left.?.vtype == .NUMBER)
-             and (right != null and right.?.vtype == .NUMBER)) return;
+        if (left == null or right == null) return error.OperandError;
+        if (left.?.vtype == .NUMBER and right.?.vtype == .NUMBER) return;
         //std.info.err("Operands must be a number.", .{});
         return error.OperandError;
     }
-    
+
     fn evaluate(self: *Self, expr: Expr.Expr) !?Object {
         var iface = self.interface();
         // Whichever Expr accepts the Interpreter Interface which will
@@ -206,7 +194,7 @@ pub const Interpreter = struct {
         if (object.?.vtype == .BOOLEAN) return object.?.value.boolean;
         return true;
     }
-    
+
     fn isEqual(a: ?Object, b: ?Object) bool {
         if (a == null and b == null) return true;
         if (a == null or b == null) return false;
@@ -218,5 +206,14 @@ pub const Interpreter = struct {
         }
         return false;
     }
-};
 
+    fn stringify(object: ?Object) void {
+        const stdout = std.io.getStdOut();
+        const writer = stdout.writer();
+        if (object == null) {
+            writer.print("nil\n", .{}) catch unreachable;
+            return;
+        }
+        writer.print("{s}\n", .{object.?.toString(self.allocator)}) catch unreachable;
+    }
+};

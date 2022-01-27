@@ -128,10 +128,9 @@ pub fn tokenError(token: Token, message: []const u8) !void {
 }
 
 pub fn runtimeError(message: []const u8) void {
-    std.log.err("{s}\n[line ?]", .{ message});
+    std.log.err("{s}\n[line ?]", .{message});
     had_runtime_error = true;
 }
-
 
 pub fn report(line: u32, where: []const u8, message: []const u8) void {
     std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });
