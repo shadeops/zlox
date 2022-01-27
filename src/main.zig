@@ -2,10 +2,12 @@ const std = @import("std");
 const scanner = @import("scanner.zig");
 const ast_printer = @import("ast_printer.zig");
 
+const Interpreter = @import("interpreter.zig").Interpreter;
 const Parser = @import("parser.zig").Parser;
 const Token = @import("token.zig").Token;
 
 var had_error: bool = false;
+var had_runtime_error: bool = false;
 
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -47,6 +49,8 @@ fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
 
     if (had_error)
         std.process.exit(65);
+    if (had_runtime_error)
+        std.process.exit(70);
 
     return;
 }
@@ -71,6 +75,7 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
         if (input.len == 0) break;
         try run(allocator, input);
         had_error = false;
+        had_runtime_error = false;
     }
     return;
 }
@@ -79,6 +84,9 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
     defer token_scanner.deinit();
     var tokens = try token_scanner.scanTokens();
+    //for (tokens.items) |t| {
+    //    std.debug.print("{s}\n", .{t.lexeme});
+    //}
 
     var parser_arena = std.heap.ArenaAllocator.init(allocator);
     defer parser_arena.deinit();
@@ -90,19 +98,22 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
 
     if (had_error) return;
 
-    var printer = ast_printer.AstPrinter.init(allocator);
-    defer printer.deinit();
-    var printer_interface = printer.interface();
-    try printer_interface.visitExpr(&expression);
+    //var printer = ast_printer.AstPrinter.init(allocator);
+    //defer printer.deinit();
+    //try printer.print(expression);
+
+    var interpreter = Interpreter.init(parser_arena.allocator());
+    defer interpreter.deinit();
+    interpreter.interpret(expression);
 
     return;
 }
 
-pub fn line_error(line: u32, message: []const u8) void {
+pub fn lineError(line: u32, message: []const u8) void {
     report(line, "", message);
 }
 
-pub fn token_error(token: Token, message: []const u8) !void {
+pub fn tokenError(token: Token, message: []const u8) !void {
     if (token.token_type == .EOF) {
         report(token.line, " at end", message);
     } else {
@@ -115,6 +126,12 @@ pub fn token_error(token: Token, message: []const u8) !void {
         );
     }
 }
+
+pub fn runtimeError(message: []const u8) void {
+    std.log.err("{s}\n[line ?]", .{ message});
+    had_runtime_error = true;
+}
+
 
 pub fn report(line: u32, where: []const u8, message: []const u8) void {
     std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });

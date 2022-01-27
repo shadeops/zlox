@@ -4,7 +4,7 @@ const TokenType = @import("token_types.zig").TokenType;
 const Expr = @import("expr.zig");
 const Object = @import("object.zig").Object;
 
-const token_error = @import("main.zig").token_error;
+const tokenError = @import("main.zig").tokenError;
 
 const ParseError = error{
     Paren,
@@ -126,7 +126,7 @@ pub const Parser = struct {
 
     fn consume(self: *Self, token_type: TokenType, message: []const u8) ParseError!Token {
         if (self.check(token_type)) return self.advance();
-        try report_error(self.peek(), message);
+        try reportError(self.peek(), message);
         return ParseError.Expression;
     }
 
@@ -152,8 +152,8 @@ pub const Parser = struct {
         return self.tokens.items[self.current - 1];
     }
 
-    fn report_error(token: Token, message: []const u8) ParseError!void {
-        token_error(token, message) catch {
+    fn reportError(token: Token, message: []const u8) ParseError!void {
+        tokenError(token, message) catch {
             // could not print
         };
         return error.Expression;
@@ -182,7 +182,7 @@ test "Parser.check" {
     try tokens.append(.{ .token_type = .PLUS, .lexeme = "+", .literal = null, .line = 1 });
     try tokens.append(.{ .token_type = .EOF, .lexeme = "", .literal = null, .line = 1 });
 
-    var parser = Parser.init(tokens);
+    var parser = Parser.init(a, tokens);
     try std.testing.expect(parser.check(.MINUS));
     try std.testing.expect(parser.advance().token_type == .MINUS);
     try std.testing.expect(parser.check(.PLUS));

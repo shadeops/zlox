@@ -34,7 +34,6 @@ pub const AstPrinter = struct {
     pub fn interface(self: *Self) Expr.VisitorInterface {
         return .{
             .impl = @ptrCast(*anyopaque, self),
-            .visitExprFn = print,
             .visitAssignExprFn = visitAssignExpr,
             .visitBinaryExprFn = visitBinaryExpr,
             .visitCallExprFn = visitCallExpr,
@@ -49,8 +48,7 @@ pub const AstPrinter = struct {
         };
     }
 
-    pub fn print(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
-        const self = castToSelf(Self, ptr);
+    pub fn print(self: *Self, expr: Expr.Expr) anyerror!void {
         var iface = self.interface();
         try expr.accept(&iface);
         for (self.strings.items) |item| {

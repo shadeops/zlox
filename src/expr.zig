@@ -5,7 +5,6 @@ const Object = @import("object.zig").Object;
 pub const VisitorInterface = struct {
     impl: *anyopaque,
 
-    visitExprFn: fn (*anyopaque, *const Expr) anyerror!void,
     visitAssignExprFn: fn (*anyopaque, *const Assign) anyerror!void,
     visitBinaryExprFn: fn (*anyopaque, *const Binary) anyerror!void,
     visitCallExprFn: fn (*anyopaque, *const Call) anyerror!void,
@@ -18,10 +17,6 @@ pub const VisitorInterface = struct {
     visitUnaryExprFn: fn (*anyopaque, *const Unary) anyerror!void,
     visitVariableExprFn: fn (*anyopaque, *const Variable) anyerror!void,
 
-    pub fn visitExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
-        try iface.visitExprFn(iface.impl, expr);
-        return;
-    }
     pub fn visitAssignExpr(iface: *VisitorInterface, expr: *const Assign) anyerror!void {
         iface.visitAssignExprFn(iface.impl, expr);
         return;
@@ -465,3 +460,23 @@ pub const Variable = struct {
         try visitor.visitVariableExpr(self);
     }
 };
+
+test "Expr.ptrs" {
+    const a = std.testing.allocator;
+    var x = Literal.create(a, null);
+    var interface = x.toExpr();
+    std.debug.print("\n", .{});
+    try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
+    std.debug.print("x: {*}\n", .{x});
+    std.debug.print("&x: {}\n", .{&x});
+    std.debug.print("impl {*}\n", .{(interface.impl)});
+    std.debug.print("&impl {}\n", .{&(interface.impl)});
+    a.destroy(x);
+    x = Literal.create(a, null);
+    //try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
+    std.debug.print("x: {*}\n", .{x});
+    std.debug.print("&x: {}\n", .{&x});
+    std.debug.print("impl {*}\n", .{(interface.impl)});
+    std.debug.print("&impl {}\n", .{&(interface.impl)});
+    a.destroy(x);
+}

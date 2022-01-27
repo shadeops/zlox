@@ -1,5 +1,5 @@
 const std = @import("std");
-const line_error = @import("main.zig").line_error;
+const lineError = @import("main.zig").lineError;
 
 const Object = @import("object.zig").Object;
 const Token = @import("token.zig").Token;
@@ -107,7 +107,7 @@ pub const Scanner = struct {
                 } else if (isAlpha(c)) {
                     try self.identifier();
                 } else {
-                    line_error(self.line, "Unexpected character.");
+                    lineError(self.line, "Unexpected character.");
                 }
             },
         }
@@ -120,7 +120,7 @@ pub const Scanner = struct {
             _ = self.advance();
         }
         if (self.isAtEnd()) {
-            line_error(self.line, "Unterminated string.");
+            lineError(self.line, "Unterminated string.");
             return;
         }
         _ = self.advance();
@@ -134,7 +134,7 @@ pub const Scanner = struct {
         if (self.peek() == '.' and isDigit(self.peekNext())) _ = self.advance();
         while (isDigit(self.peek())) _ = self.advance();
         var num: f64 = std.fmt.parseFloat(f64, self.source[self.start..self.current]) catch {
-            line_error(self.line, "Unable to parse float");
+            lineError(self.line, "Unable to parse float");
             return;
         };
         try self.addToken(.NUMBER, Object.initNumber(num));
@@ -162,6 +162,7 @@ fn matchIdentifier(str: []const u8) ?TokenType {
     if (std.mem.eql(u8, "return", str)) return .RETURN;
     if (std.mem.eql(u8, "super", str)) return .SUPER;
     if (std.mem.eql(u8, "this", str)) return .THIS;
+    if (std.mem.eql(u8, "true", str)) return .TRUE;
     if (std.mem.eql(u8, "var", str)) return .VAR;
     if (std.mem.eql(u8, "while", str)) return .WHILE;
     return null;
