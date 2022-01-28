@@ -91,7 +91,7 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var parser_arena = std.heap.ArenaAllocator.init(allocator);
     defer parser_arena.deinit();
     var parser = Parser.init(parser_arena.allocator(), tokens);
-    var expression = parser.parse() orelse {
+    var statements = parser.parse() catch {
         std.log.err("parsing error\n", .{});
         return;
     };
@@ -104,7 +104,7 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
 
     var interpreter = Interpreter.init(parser_arena.allocator());
     defer interpreter.deinit();
-    interpreter.interpret(expression);
+    interpreter.interpret(statements);
 
     return;
 }

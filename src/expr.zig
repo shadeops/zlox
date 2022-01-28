@@ -11,6 +11,7 @@ pub const VisitorInterface = struct {
     visitGetExprFn: fn (*anyopaque, *const Get) anyerror!void,
     visitGroupingExprFn: fn (*anyopaque, *const Grouping) anyerror!void,
     visitLiteralExprFn: fn (*anyopaque, *const Literal) anyerror!void,
+    visitLogicalExprFn: fn (*anyopaque, *const Logical) anyerror!void,
     visitSetExprFn: fn (*anyopaque, *const Set) anyerror!void,
     visitSuperExprFn: fn (*anyopaque, *const Super) anyerror!void,
     visitThisExprFn: fn (*anyopaque, *const This) anyerror!void,
@@ -26,11 +27,11 @@ pub const VisitorInterface = struct {
         return;
     }
     pub fn visitCallExpr(iface: *VisitorInterface, expr: *const Call) anyerror!void {
-        iface.visitCallExprFn(iface.impl, expr);
+        try iface.visitCallExprFn(iface.impl, expr);
         return;
     }
     pub fn visitGetExpr(iface: *VisitorInterface, expr: *const Get) anyerror!void {
-        iface.visitGetExprFn(iface.impl, expr);
+        try iface.visitGetExprFn(iface.impl, expr);
         return;
     }
     pub fn visitGroupingExpr(iface: *VisitorInterface, expr: *const Grouping) anyerror!void {
@@ -42,15 +43,15 @@ pub const VisitorInterface = struct {
         return;
     }
     pub fn visitSetExpr(iface: *VisitorInterface, expr: *const Set) anyerror!void {
-        iface.visitSetExprFn(iface.impl, expr);
+        try iface.visitSetExprFn(iface.impl, expr);
         return;
     }
     pub fn visitSuperExpr(iface: *VisitorInterface, expr: *const Super) anyerror!void {
-        iface.visitSuperExprFn(iface.impl, expr);
+        try iface.visitSuperExprFn(iface.impl, expr);
         return;
     }
     pub fn visitThisExpr(iface: *VisitorInterface, expr: *const This) anyerror!void {
-        iface.visitThisExprFn(iface.impl, expr);
+        try iface.visitThisExprFn(iface.impl, expr);
         return;
     }
     pub fn visitUnaryExpr(iface: *VisitorInterface, expr: *const Unary) anyerror!void {
@@ -58,7 +59,7 @@ pub const VisitorInterface = struct {
         return;
     }
     pub fn visitVariableExpr(iface: *VisitorInterface, expr: *const Variable) anyerror!void {
-        iface.visitVariableExprFn(iface.impl, expr);
+        try iface.visitVariableExprFn(iface.impl, expr);
         return;
     }
 };

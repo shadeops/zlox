@@ -40,6 +40,7 @@ pub const AstPrinter = struct {
             .visitGetExprFn = visitGetExpr,
             .visitGroupingExprFn = visitGroupingExpr,
             .visitLiteralExprFn = visitLiteralExpr,
+            .visitLogicalExprFn = visitLogicalExpr,
             .visitSetExprFn = visitSetExpr,
             .visitSuperExprFn = visitSuperExpr,
             .visitThisExprFn = visitThisExpr,
@@ -98,6 +99,10 @@ pub const AstPrinter = struct {
         } else {
             try self.strings.append("nil");
         }
+    }
+    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) !void {
+        _ = ptr;
+        _ = expr;
     }
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) !void {
         _ = ptr;

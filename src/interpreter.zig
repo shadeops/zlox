@@ -2,6 +2,7 @@ const std = @import("std");
 const Token = @import("token.zig").Token;
 const Object = @import("object.zig").Object;
 const Expr = @import("expr.zig");
+const Stmt = @import("stmt.zig");
 
 const runtimeError = @import("main.zig").runtimeError;
 
@@ -29,7 +30,7 @@ pub const Interpreter = struct {
         _ = self;
     }
 
-    pub fn interface(self: *Self) Expr.VisitorInterface {
+    pub fn exprInterface(self: *Self) Expr.VisitorInterface {
         return .{
             .impl = @ptrCast(*anyopaque, self),
             .visitAssignExprFn = visitAssignExpr,
@@ -38,6 +39,7 @@ pub const Interpreter = struct {
             .visitGetExprFn = visitGetExpr,
             .visitGroupingExprFn = visitGroupingExpr,
             .visitLiteralExprFn = visitLiteralExpr,
+            .visitLogicalExprFn = visitLogicalExpr,
             .visitSetExprFn = visitSetExpr,
             .visitSuperExprFn = visitSuperExpr,
             .visitThisExprFn = visitThisExpr,
@@ -46,15 +48,30 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, expression: Expr.Expr) void {
-        var value = self.evaluate(expression) catch |err| {
-            runtimeError(@errorName(err));
-            return;
+    pub fn stmtInterface(self: *Self) Stmt.VisitorInterface {
+        return .{
+            .impl = @ptrCast(*anyopaque, self),
+            .visitBlockStmtFn = visitBlockStmt,
+            .visitClassStmtFn = visitClassStmt,
+            .visitExpressionStmtFn = visitExpressionStmt,
+            .visitFunctionStmtFn = visitFunctionStmt,
+            .visitIfStmtFn = visitIfStmt,
+            .visitPrintStmtFn = visitPrintStmt,
+            .visitReturnStmtFn = visitReturnStmt,
+            .visitVarStmtFn = visitVarStmt,
+            .visitWhileStmtFn = visitWhileStmt,
         };
-        self.stringify(value);
     }
 
-    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) !void {
+    pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
+        for (statements.items) |statement| {
+            self.execute(statement) catch |err| {
+                runtimeError(@errorName(err));
+            };
+        }
+    }
+
+    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
         _ = ptr;
         _ = expr;
     }
@@ -88,11 +105,11 @@ pub const Interpreter = struct {
             },
             .PLUS => {
                 if (left == null or right == null) return error.OperandError;
-                if (left.?.vtype == .NUMBER and right.?.vtype == .NUMBER) {
+                if (left.?.isType(.NUMBER) and right.?.isType(.NUMBER)) {
                     self.ret = Object.initNumber(left.?.value.number + right.?.value.number);
                     return;
                 }
-                if (left.?.vtype == .STRING and right.?.vtype == .STRING) {
+                if (left.?.isType(.STRING) and right.?.isType(.STRING)) {
                     var strs = [_][]const u8{ left.?.value.string, right.?.value.string };
                     var new_str = std.mem.concat(self.allocator, u8, &strs) catch unreachable;
                     self.ret = Object.initString(new_str);
@@ -116,35 +133,39 @@ pub const Interpreter = struct {
         return;
     }
 
-    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) !void {
+    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
         _ = ptr;
         _ = expr;
     }
-    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) !void {
+    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
         _ = ptr;
         _ = expr;
     }
-    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) !void {
+    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = try self.evaluate(expr.expression);
     }
-    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) !void {
+    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = expr.value;
     }
-    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) !void {
+    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
         _ = ptr;
         _ = expr;
     }
-    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) !void {
+    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
         _ = ptr;
         _ = expr;
     }
-    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) !void {
+    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         _ = ptr;
         _ = expr;
     }
-    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) !void {
+    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
+        _ = ptr;
+        _ = expr;
+    }
+    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
         const self = castToSelf(Self, ptr);
 
         var right = try self.evaluate(expr.right);
@@ -161,14 +182,14 @@ pub const Interpreter = struct {
             },
         }
     }
-    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) !void {
+    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         _ = ptr;
         _ = expr;
     }
 
     fn checkNumberOperand(operator: Token, operand: ?Object) !void {
         _ = operator;
-        if (operand != null and operand.?.vtype == .NUMBER) return;
+        if (operand != null and operand.?.isType(.NUMBER)) return;
         //std.info.err("Operand must be a number.", .{});
         return error.OperandError;
     }
@@ -176,29 +197,82 @@ pub const Interpreter = struct {
     fn checkNumberOperands(operator: Token, left: ?Object, right: ?Object) !void {
         _ = operator;
         if (left == null or right == null) return error.OperandError;
-        if (left.?.vtype == .NUMBER and right.?.vtype == .NUMBER) return;
+        if (left.?.isType(.NUMBER) and right.?.isType(.NUMBER)) return;
         //std.info.err("Operands must be a number.", .{});
         return error.OperandError;
     }
 
     fn evaluate(self: *Self, expr: Expr.Expr) !?Object {
-        var iface = self.interface();
+        var iface = self.exprInterface();
         // Whichever Expr accepts the Interpreter Interface which will
         // update the Interpreter's ret value
         try expr.accept(&iface);
         return self.ret;
     }
 
+    fn execute(self: *Self, stmt: Stmt.Stmt) !void {
+        var iface = self.stmtInterface();
+        try stmt.accept(&iface);
+    }
+
+    fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        _ = try self.evaluate(stmt.expression);
+    }
+
+    fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Function) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Print) anyerror!void {
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        var value = try self.evaluate(stmt.expression);
+        self.stringify(value);
+    }
+
+    fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
+    fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
+        _ = ptr;
+        _ = stmt;
+    }
+
     fn isTruthy(object: ?Object) bool {
         if (object == null) return false;
-        if (object.?.vtype == .BOOLEAN) return object.?.value.boolean;
+        if (object.?.isType(.BOOLEAN)) return object.?.value.boolean;
         return true;
     }
 
     fn isEqual(a: ?Object, b: ?Object) bool {
         if (a == null and b == null) return true;
         if (a == null or b == null) return false;
-        if (a.?.vtype != b.?.vtype) return false;
+        if (!a.?.isType(b.?.vtype)) return false;
         switch (a.?.vtype) {
             .NUMBER => return a.?.value.number == b.?.value.number,
             .BOOLEAN => return a.?.value.boolean == b.?.value.boolean,
@@ -207,7 +281,7 @@ pub const Interpreter = struct {
         return false;
     }
 
-    fn stringify(object: ?Object) void {
+    fn stringify(self: *Self, object: ?Object) void {
         const stdout = std.io.getStdOut();
         const writer = stdout.writer();
         if (object == null) {

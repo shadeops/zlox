@@ -1,7 +1,10 @@
 const std = @import("std");
+
+const Expr = @import("expr.zig");
+const Stmt = @import("stmt.zig");
+
 const Token = @import("token.zig").Token;
 const TokenType = @import("token_types.zig").TokenType;
-const Expr = @import("expr.zig");
 const Object = @import("object.zig").Object;
 
 const tokenError = @import("main.zig").tokenError;
@@ -26,14 +29,34 @@ pub const Parser = struct {
         };
     }
 
-    pub fn parse(self: *Self) ?Expr.Expr {
-        return self.expression() catch {
-            return null;
-        };
+    pub fn parse(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
+        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
+        while (!self.isAtEnd()) {
+            try statements.append(try self.statement());
+        }
+        return statements;
     }
 
     fn expression(self: *Self) ParseError!Expr.Expr {
         return try self.equality();
+    }
+
+    fn statement(self: *Self) ParseError!Stmt.Stmt {
+        if (self.match(&.{.PRINT})) return self.printStatement();
+
+        return self.expressionStatement();
+    }
+
+    fn printStatement(self: *Self) ParseError!Stmt.Stmt {
+        var value = try self.expression();
+        _ = try self.consume(.SEMICOLON, "Expect ';' after value.");
+        return Stmt.Print.create(self.allocator, value).toStmt();
+    }
+
+    fn expressionStatement(self: *Self) ParseError!Stmt.Stmt {
+        var expr = try self.expression();
+        _ = try self.consume(.SEMICOLON, "Expect ';' after expression.");
+        return Stmt.Expression.create(self.allocator, expr).toStmt();
     }
 
     fn equality(self: *Self) ParseError!Expr.Expr {
