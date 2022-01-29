@@ -443,9 +443,9 @@ pub const Variable = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, name: Token, value: Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, name: Token) *Self {
         var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(name, value);
+        ptr.* = Self.init(name);
         return ptr;
     }
 

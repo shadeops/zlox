@@ -6,6 +6,8 @@ const Interpreter = @import("interpreter.zig").Interpreter;
 const Parser = @import("parser.zig").Parser;
 const Token = @import("token.zig").Token;
 
+var interpreter: Interpreter = undefined;
+
 var had_error: bool = false;
 var had_runtime_error: bool = false;
 
@@ -13,17 +15,22 @@ pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
+
+    interpreter = Interpreter.init(arena.allocator());
+    defer interpreter.deinit();
 
     if (args.len > 2) {
         std.log.err("Usage: zlox [script]", .{});
         std.process.exit(64);
     } else if (args.len == 2) {
-        try runFile(allocator, args[1]);
+        try runFile(arena.allocator(), args[1]);
     } else {
-        try runPrompt(allocator);
+        try runPrompt(arena.allocator());
     }
 }
 
@@ -59,10 +66,14 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
     _ = allocator;
     const stdout = std.io.getStdOut();
     const stdin = std.io.getStdIn();
-    var buffer: [1024]u8 = undefined;
+    // NOTE:
+    // we can't use a buffer because we many of our objects reference slices
+    // of the input stream. Until the various code paths are updated to take ownership
+    // we'll use the allocator.
+    //var buffer: [1024]u8 = undefined;
     while (true) {
         try stdout.writeAll("> ");
-        const input = stdin.reader().readUntilDelimiter(&buffer, '\n') catch |err| {
+        const input = stdin.reader().readUntilDelimiterAlloc(allocator, '\n', 1024) catch |err| {
             switch (err) {
                 error.StreamTooLong => {
                     std.log.err("Input too big (more than 1024 characters)", .{});
@@ -82,15 +93,14 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
-    defer token_scanner.deinit();
+    //defer token_scanner.deinit();
+    
     var tokens = try token_scanner.scanTokens();
     //for (tokens.items) |t| {
     //    std.debug.print("{s}\n", .{t.lexeme});
     //}
 
-    var parser_arena = std.heap.ArenaAllocator.init(allocator);
-    defer parser_arena.deinit();
-    var parser = Parser.init(parser_arena.allocator(), tokens);
+    var parser = Parser.init(allocator, tokens);
     var statements = parser.parse() catch {
         std.log.err("parsing error\n", .{});
         return;
@@ -102,8 +112,6 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     //defer printer.deinit();
     //try printer.print(expression);
 
-    var interpreter = Interpreter.init(parser_arena.allocator());
-    defer interpreter.deinit();
     interpreter.interpret(statements);
 
     return;

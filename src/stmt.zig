@@ -307,9 +307,9 @@ pub const Return = struct {
 pub const Var = struct {
     const Self = @This();
     name: Token,
-    initializer: Expr.Expr,
+    initializer: ?Expr.Expr,
 
-    pub fn init(name: Token, initializer: Expr.Expr) Self {
+    pub fn init(name: Token, initializer: ?Expr.Expr) Self {
         return .{
             .name = name,
             .initializer = initializer,
@@ -319,7 +319,7 @@ pub const Var = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         name: Token,
-        initializer: Expr.Expr,
+        initializer: ?Expr.Expr,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name, initializer);

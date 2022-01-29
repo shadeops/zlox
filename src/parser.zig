@@ -29,16 +29,27 @@ pub const Parser = struct {
         };
     }
 
-    pub fn parse(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
-        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
+    pub fn parse(self: *Self) ParseError!std.ArrayList(?Stmt.Stmt) {
+        var statements = std.ArrayList(?Stmt.Stmt).init(self.allocator);
         while (!self.isAtEnd()) {
-            try statements.append(try self.statement());
+            try statements.append(try self.declaration());
         }
         return statements;
     }
 
     fn expression(self: *Self) ParseError!Expr.Expr {
         return try self.equality();
+    }
+
+    fn declaration(self: *Self) ParseError!?Stmt.Stmt {
+        if (self.match(&.{.VAR})) {
+            return self.varDeclaration() catch {
+                self.synchronize();
+                // TODO nulls in the statement list aren't supported yet
+                return null;
+            };
+        }
+        return try self.statement();
     }
 
     fn statement(self: *Self) ParseError!Stmt.Stmt {
@@ -51,6 +62,17 @@ pub const Parser = struct {
         var value = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after value.");
         return Stmt.Print.create(self.allocator, value).toStmt();
+    }
+
+    fn varDeclaration(self: *Self) ParseError!Stmt.Stmt {
+        var name = try self.consume(.IDENTIFIER, "Expect variable name.");
+
+        var initializer: ?Expr.Expr = null;
+        if (self.match(&.{.EQUAL})) {
+            initializer = try self.expression();
+        }
+        _ = try self.consume(.SEMICOLON, "Expect ';' after variable declaration");
+        return Stmt.Var.create(self.allocator, name, initializer).toStmt();
     }
 
     fn expressionStatement(self: *Self) ParseError!Stmt.Stmt {
@@ -128,6 +150,9 @@ pub const Parser = struct {
         if (self.match(&.{ .NUMBER, .STRING }))
             return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
 
+        if (self.match(&.{.IDENTIFIER}))
+            return Expr.Variable.create(self.allocator, self.previous()).toExpr();
+
         if (self.match(&.{.LEFT_PAREN})) {
             var expr = try self.expression();
             _ = try self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
@@ -183,15 +208,16 @@ pub const Parser = struct {
     }
 
     fn synchronize(self: *Self) void {
-        self.advance();
+        _ = self.advance();
 
         while (!self.isAtEnd()) {
             if (self.previous().token_type == .SEMICOLON) return;
 
             switch (self.peek().token_type) {
                 .CLASS, .FUN, .VAR, .FOR, .IF, .WHILE, .PRINT, .RETURN => return,
+                else => {},
             }
-            self.advance();
+            _ = self.advance();
         }
     }
 };

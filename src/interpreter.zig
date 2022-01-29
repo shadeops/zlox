@@ -1,6 +1,7 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const Object = @import("object.zig").Object;
+const Environment = @import("environment.zig").Environment;
 const Expr = @import("expr.zig");
 const Stmt = @import("stmt.zig");
 
@@ -15,6 +16,7 @@ fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
 pub const Interpreter = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
+    environment: Environment,
 
     // we capture the return value here instead of returning
     // a generic structure
@@ -23,11 +25,12 @@ pub const Interpreter = struct {
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
+            .environment = Environment.init(allocator),
         };
     }
 
     pub fn deinit(self: *Self) void {
-        _ = self;
+        self.environment.deinit();
     }
 
     pub fn exprInterface(self: *Self) Expr.VisitorInterface {
@@ -63,9 +66,13 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
+    pub fn interpret(self: *Self, statements: std.ArrayList(?Stmt.Stmt)) void {
         for (statements.items) |statement| {
-            self.execute(statement) catch |err| {
+            if (statement == null) {
+                runtimeError("Invalid statement");
+                continue;
+            }
+            self.execute(statement.?) catch |err| {
                 runtimeError(@errorName(err));
             };
         }
@@ -183,8 +190,9 @@ pub const Interpreter = struct {
         }
     }
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+
+        self.ret = try self.environment.get(expr.name);
     }
 
     fn checkNumberOperand(operator: Token, operand: ?Object) !void {
@@ -254,8 +262,15 @@ pub const Interpreter = struct {
     }
 
     fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        
+        var value: ?Object = null;
+        if (stmt.initializer != null) {
+            value = try self.evaluate(stmt.initializer.?);
+        }
+
+        self.environment.define(stmt.name.lexeme, value);
     }
 
     fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
