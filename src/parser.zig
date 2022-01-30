@@ -38,7 +38,7 @@ pub const Parser = struct {
     }
 
     fn expression(self: *Self) ParseError!Expr.Expr {
-        return try self.equality();
+        return try self.assignment();
     }
 
     fn declaration(self: *Self) ParseError!?Stmt.Stmt {
@@ -79,6 +79,26 @@ pub const Parser = struct {
         var expr = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after expression.");
         return Stmt.Expression.create(self.allocator, expr).toStmt();
+    }
+
+    fn assignment(self: *Self) ParseError!Expr.Expr {
+        var expr = try self.equality();
+
+        if (self.match(&.{.EQUAL})) {
+            var equals = self.previous();
+            var value = try self.assignment();
+
+            if (expr.expr_type == .VARIABLE) {
+                const alignment = @alignOf(Expr.Variable);
+                var variable_expr = @ptrCast(*const Expr.Variable, @alignCast(alignment, expr.impl));
+                var name = variable_expr.name;
+                return Expr.Assign.create(self.allocator, name, value).toExpr();
+            }
+
+            try reportError(equals, "Invalid assignment target.");
+        }
+
+        return expr;
     }
 
     fn equality(self: *Self) ParseError!Expr.Expr {

@@ -19,7 +19,7 @@ pub const Object = struct {
     pub fn isType(self: Object, object_type: ObjectType) bool {
         return self.vtype == object_type;
     }
-    
+
     pub fn initNumber(number: f64) Object {
         return .{
             .vtype = .NUMBER,

@@ -94,7 +94,7 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
     //defer token_scanner.deinit();
-    
+
     var tokens = try token_scanner.scanTokens();
     //for (tokens.items) |t| {
     //    std.debug.print("{s}\n", .{t.lexeme});

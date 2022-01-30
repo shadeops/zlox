@@ -79,8 +79,11 @@ pub const Interpreter = struct {
     }
 
     fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        
+        var value = try self.evaluate(expr.value);
+        try self.environment.assign(expr.name, value);
+        self.ret = value;
     }
 
     fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Binary) anyerror!void {
@@ -264,7 +267,7 @@ pub const Interpreter = struct {
     fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
-        
+
         var value: ?Object = null;
         if (stmt.initializer != null) {
             value = try self.evaluate(stmt.initializer.?);

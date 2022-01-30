@@ -19,7 +19,7 @@ pub const VisitorInterface = struct {
     visitVariableExprFn: fn (*anyopaque, *const Variable) anyerror!void,
 
     pub fn visitAssignExpr(iface: *VisitorInterface, expr: *const Assign) anyerror!void {
-        iface.visitAssignExprFn(iface.impl, expr);
+        try iface.visitAssignExprFn(iface.impl, expr);
         return;
     }
     pub fn visitBinaryExpr(iface: *VisitorInterface, expr: *const Binary) anyerror!void {
@@ -64,8 +64,28 @@ pub const VisitorInterface = struct {
     }
 };
 
+// TODO
+// Work around the fact we need type introspection at runtime in
+// the Parser.assignment
+pub const ExprType = enum {
+    ASSIGN,
+    BINARY,
+    CALL,
+    GET,
+    GROUPING,
+    LITERAL,
+    LOGICAL,
+    SET,
+    SUPER,
+    THIS,
+    UNARY,
+    VARIABLE,
+};
+    
+
 pub const Expr = struct {
     impl: *const anyopaque,
+    expr_type: ExprType,
 
     acceptFn: fn (*const anyopaque, *VisitorInterface) anyerror!void,
 
@@ -102,6 +122,7 @@ pub const Assign = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .ASSIGN,
         };
     }
 
@@ -140,6 +161,7 @@ pub const Binary = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .BINARY,
         };
     }
 
@@ -178,6 +200,7 @@ pub const Call = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .CALL,
         };
     }
 
@@ -209,6 +232,7 @@ pub const Get = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .GET,
         };
     }
 
@@ -238,6 +262,7 @@ pub const Grouping = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .GROUPING,
         };
     }
 
@@ -267,6 +292,7 @@ pub const Literal = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .LITERAL,
         };
     }
 
@@ -300,6 +326,7 @@ pub const Logical = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .LOGICAL,
         };
     }
 
@@ -333,6 +360,7 @@ pub const Set = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .SET,
         };
     }
 
@@ -364,6 +392,7 @@ pub const Super = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .SUPER,
         };
     }
 
@@ -393,6 +422,7 @@ pub const This = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .THIS,
         };
     }
 
@@ -424,6 +454,7 @@ pub const Unary = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .UNARY,
         };
     }
 
@@ -453,6 +484,7 @@ pub const Variable = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .acceptFn = accept,
+            .expr_type = .VARIABLE,
         };
     }
 
@@ -466,6 +498,7 @@ test "Expr.ptrs" {
     const a = std.testing.allocator;
     var x = Literal.create(a, null);
     var interface = x.toExpr();
+    try std.testing.expect(interface.expr_type == .LITERAL);
     std.debug.print("\n", .{});
     try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
     std.debug.print("x: {*}\n", .{x});
