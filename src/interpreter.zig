@@ -163,8 +163,22 @@ pub const Interpreter = struct {
         self.ret = expr.value;
     }
     fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        var left = try self.evaluate(expr.left);
+
+        if (expr.operator.token_type == .OR) {
+            if (isTruthy(left)) {
+                self.ret = left;
+                return;
+            }
+        } else {
+            if (!isTruthy(left)) {
+                self.ret = left;
+                return;
+            }
+        }
+
+        self.ret = try self.evaluate(expr.right);
     }
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
         _ = ptr;
@@ -266,8 +280,13 @@ pub const Interpreter = struct {
     }
 
     fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        if (isTruthy(try self.evaluate(stmt.condition))) {
+            try self.execute(stmt.then_branch);
+        } else if ( stmt.else_branch != null ) {
+            try self.execute(stmt.else_branch.?);
+        }
     }
 
     fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Print) anyerror!void {
@@ -295,8 +314,12 @@ pub const Interpreter = struct {
     }
 
     fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+
+        while (isTruthy(try self.evaluate(stmt.condition))) {
+            try self.execute(stmt.body);
+        }
     }
 
     fn isTruthy(object: ?Object) bool {

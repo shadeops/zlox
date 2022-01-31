@@ -71,6 +71,7 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 
 pub const Block = struct {
     const Self = @This();
+    // TODO consider using [] Stmt
     statements: std.ArrayList(Stmt),
 
     pub fn init(statements: std.ArrayList(Stmt)) Self {
@@ -210,9 +211,9 @@ pub const If = struct {
     const Self = @This();
     condition: Expr.Expr,
     then_branch: Stmt,
-    else_branch: Stmt,
+    else_branch: ?Stmt,
 
-    pub fn init(condition: Expr.Expr, then_branch: Stmt, else_branch: Stmt) Self {
+    pub fn init(condition: Expr.Expr, then_branch: Stmt, else_branch: ?Stmt) Self {
         return .{
             .condition = condition,
             .then_branch = then_branch,
@@ -224,7 +225,7 @@ pub const If = struct {
         allocator: std.mem.Allocator,
         condition: Expr.Expr,
         then_branch: Stmt,
-        else_branch: Stmt,
+        else_branch: ?Stmt,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(condition, then_branch, else_branch);

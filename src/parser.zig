@@ -53,11 +53,78 @@ pub const Parser = struct {
     }
 
     fn statement(self: *Self) ParseError!Stmt.Stmt {
+        if (self.match(&.{.FOR})) return self.forStatement();
+        if (self.match(&.{.IF})) return self.ifStatement();
         if (self.match(&.{.PRINT})) return self.printStatement();
+        if (self.match(&.{.WHILE})) return self.whileStatement();
         if (self.match(&.{.LEFT_BRACE}))
             return Stmt.Block.create(self.allocator, try self.block()).toStmt();
 
         return self.expressionStatement();
+    }
+
+    fn forStatement(self: *Self) ParseError!Stmt.Stmt {
+        _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'for'.");
+
+        var initializer: ?Stmt.Stmt = null;
+        if (self.match(&.{.SEMICOLON})) {
+            initializer = null;
+        } else if (self.match(&.{.VAR})) {
+            initializer = try self.varDeclaration();
+        } else {
+            initializer = try self.expressionStatement();
+        }
+
+        var condition: ?Expr.Expr = null;
+        if (!self.check(.SEMICOLON)) {
+            condition = try self.expression();
+        }
+
+        _ = try self.consume(.SEMICOLON, "Expect ';' after loop condition.");
+
+        var increment: ?Expr.Expr = null;
+        if (!self.check(.RIGHT_PAREN)) {
+            increment = try self.expression();
+        }
+
+        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after flor clauses.");
+        var body = try self.statement();
+
+        if (increment != null) {
+            var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
+            try list.append(body);
+            try list.append(Stmt.Expression.create(self.allocator, increment.?).toStmt());
+            body = Stmt.Block.create(self.allocator, list).toStmt(); 
+        }
+
+        if (condition == null)
+            condition = Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
+        body = Stmt.While.create(self.allocator, condition.?, body).toStmt(); 
+
+        if (initializer != null) {
+            var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
+            try list.append(initializer.?);
+            try list.append(body);
+            body = Stmt.Block.create(self.allocator, list).toStmt(); 
+        }
+
+        return body;
+
+    }
+
+    fn ifStatement(self: *Self) ParseError!Stmt.Stmt {
+        _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'if'.");
+        var condition = try self.expression();
+        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after 'if'.");
+
+        var then_branch = try self.statement();
+        var else_branch: ?Stmt.Stmt = null;
+
+        if (self.match(&.{.ELSE})) {
+            else_branch = try self.statement();
+        }
+
+        return Stmt.If.create(self.allocator, condition, then_branch, else_branch).toStmt();
     }
 
     fn printStatement(self: *Self) ParseError!Stmt.Stmt {
@@ -77,6 +144,15 @@ pub const Parser = struct {
         return Stmt.Var.create(self.allocator, name, initializer).toStmt();
     }
 
+    fn whileStatement(self: *Self) ParseError!Stmt.Stmt {
+        _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'while'.");
+        var condition = try self.expression();
+        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after 'condition'.");
+        var body = try self.statement();
+
+        return Stmt.While.create(self.allocator, condition, body).toStmt();
+    }
+
     fn expressionStatement(self: *Self) ParseError!Stmt.Stmt {
         var expr = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after expression.");
@@ -94,7 +170,7 @@ pub const Parser = struct {
     }
 
     fn assignment(self: *Self) ParseError!Expr.Expr {
-        var expr = try self.equality();
+        var expr = try self.orOp();
 
         if (self.match(&.{.EQUAL})) {
             var equals = self.previous();
@@ -108,6 +184,30 @@ pub const Parser = struct {
             }
 
             try reportError(equals, "Invalid assignment target.");
+        }
+
+        return expr;
+    }
+
+    fn orOp(self: *Self) ParseError!Expr.Expr {
+        var expr = try self.andOp();
+
+        while (self.match(&.{.OR})) {
+            var operator = self.previous();
+            var right = try self.andOp();
+            expr = Expr.Logical.create(self.allocator, expr, operator, right).toExpr();
+        }
+
+        return expr;
+    }
+    
+    fn andOp(self: *Self) ParseError!Expr.Expr {
+        var expr = try self.equality();
+
+        while (self.match(&.{.AND})) {
+            var operator = self.previous();
+            var right = try self.equality();
+            expr = Expr.Logical.create(self.allocator, expr, operator, right).toExpr();
         }
 
         return expr;

@@ -42,6 +42,10 @@ pub const VisitorInterface = struct {
         try iface.visitLiteralExprFn(iface.impl, expr);
         return;
     }
+    pub fn visitLogicalExpr(iface: *VisitorInterface, expr: *const Logical) anyerror!void {
+        try iface.visitLogicalExprFn(iface.impl, expr);
+        return;
+    }
     pub fn visitSetExpr(iface: *VisitorInterface, expr: *const Set) anyerror!void {
         try iface.visitSetExprFn(iface.impl, expr);
         return;
