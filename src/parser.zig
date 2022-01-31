@@ -54,6 +54,8 @@ pub const Parser = struct {
 
     fn statement(self: *Self) ParseError!Stmt.Stmt {
         if (self.match(&.{.PRINT})) return self.printStatement();
+        if (self.match(&.{.LEFT_BRACE}))
+            return Stmt.Block.create(self.allocator, try self.block()).toStmt();
 
         return self.expressionStatement();
     }
@@ -79,6 +81,16 @@ pub const Parser = struct {
         var expr = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after expression.");
         return Stmt.Expression.create(self.allocator, expr).toStmt();
+    }
+
+    fn block(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
+        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
+        while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
+            // if we hit a null skip over it.
+            try statements.append((try self.declaration()) orelse continue);
+        }
+        _ = try self.consume(.RIGHT_BRACE, "Expect '}' after block.");
+        return statements;
     }
 
     fn assignment(self: *Self) ParseError!Expr.Expr {

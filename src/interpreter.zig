@@ -16,21 +16,24 @@ fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
 pub const Interpreter = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
-    environment: Environment,
+    environment: *Environment,
 
     // we capture the return value here instead of returning
     // a generic structure
     ret: ?Object = null,
 
     pub fn init(allocator: std.mem.Allocator) Self {
+        var environment = allocator.create(Environment) catch unreachable;
+        environment.* = Environment.init(allocator);
         return .{
             .allocator = allocator,
-            .environment = Environment.init(allocator),
+            .environment = environment,
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.environment.deinit();
+        self.allocator.destroy(self.environment);
     }
 
     pub fn exprInterface(self: *Self) Expr.VisitorInterface {
@@ -80,7 +83,7 @@ pub const Interpreter = struct {
 
     fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
         const self = castToSelf(Self, ptr);
-        
+
         var value = try self.evaluate(expr.value);
         try self.environment.assign(expr.name, value);
         self.ret = value;
@@ -226,9 +229,24 @@ pub const Interpreter = struct {
         try stmt.accept(&iface);
     }
 
+    fn executeBlock(self: *Self, statements: std.ArrayList(Stmt.Stmt), environment: *Environment) !void {
+        var previous = self.environment;
+        defer self.environment = previous;
+
+        self.environment = environment;
+        for (statements.items) |statement| {
+            try self.execute(statement);
+        }
+    }
+
     fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+
+        var environment = try self.allocator.create(Environment);
+        environment.* = Environment.init(self.allocator);
+        environment.enclosing = self.environment;
+        try self.executeBlock(stmt.statements, environment);
     }
 
     fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {

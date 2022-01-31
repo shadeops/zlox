@@ -81,7 +81,6 @@ pub const ExprType = enum {
     UNARY,
     VARIABLE,
 };
-    
 
 pub const Expr = struct {
     impl: *const anyopaque,
