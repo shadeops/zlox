@@ -14,16 +14,18 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 pub const LoxFunction = struct {
     const Self = @This();
     declaration: Stmt.Function,
+    closure: *Environment,
 
-    pub fn init(declaration: Stmt.Function) Self {
+    pub fn init(declaration: Stmt.Function, closure: *Environment) Self {
         return .{
             .declaration = declaration,
+            .closure = closure,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, declaration: Stmt.Function) *Self {
+    pub fn create(allocator: std.mem.Allocator, declaration: Stmt.Function, closure: *Environment,) *Self {
         var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(declaration);
+        ptr.* = Self.init(declaration, closure);
         return ptr;
     }
 
@@ -47,7 +49,7 @@ pub const LoxFunction = struct {
         var environment = interpreter.allocator.create(Environment) catch unreachable;
         defer interpreter.allocator.destroy(environment);
         environment.* = Environment.init(interpreter.allocator);
-        environment.enclosing = interpreter.globals;
+        environment.enclosing = self.closure;
 
         for (arguments.items) |arg, i| {
             environment.define(self.declaration.params.items[i].lexeme, arg);

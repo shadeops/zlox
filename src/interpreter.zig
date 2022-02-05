@@ -360,7 +360,7 @@ pub const Interpreter = struct {
         const self = castToSelf(Self, ptr);
         self.ret = null;
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
-        callable_ptr.* = LoxFunction.create(self.allocator, stmt.*).toCallable();
+        callable_ptr.* = LoxFunction.create(self.allocator, stmt.*, self.environment).toCallable();
         var function = Object.initCallable(callable_ptr);
         self.environment.define(stmt.name.lexeme, function);
     }
