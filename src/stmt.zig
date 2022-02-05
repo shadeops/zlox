@@ -276,16 +276,16 @@ pub const Print = struct {
 pub const Return = struct {
     const Self = @This();
     keyword: Token,
-    value: Expr.Expr,
+    value: ?Expr.Expr,
 
-    pub fn init(keyword: Token, value: Expr.Expr) Self {
+    pub fn init(keyword: Token, value: ?Expr.Expr) Self {
         return .{
             .keyword = keyword,
             .value = value,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: Token, value: Expr.Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, keyword: Token, value: ?Expr.Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(keyword, value);
         return ptr;

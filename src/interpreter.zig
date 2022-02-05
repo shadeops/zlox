@@ -46,7 +46,7 @@ const ClockCall = struct {
         _ = ptr;
         _ = interpreter;
         _ = arguments;
-        return Object.initNumber(@intToFloat(f64, std.time.timestamp()));
+        return Object.initNumber(@intToFloat(f64, std.time.milliTimestamp())/1000.0);
     }
 
     fn toString(ptr: *const anyopaque) []const u8 {
@@ -339,6 +339,7 @@ pub const Interpreter = struct {
         self.ret = null;
 
         var environment = try self.allocator.create(Environment);
+        defer self.allocator.destroy(environment);
         environment.* = Environment.init(self.allocator);
         environment.enclosing = self.environment;
         try self.executeBlock(stmt.statements, environment);
@@ -382,8 +383,18 @@ pub const Interpreter = struct {
     }
 
     fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        
+        var value = Object.initNil();
+        if (stmt.value != null)
+            value = try self.evaluate(stmt.value.?);
+
+        self.ret = value;
+        // Horrible control flow hack that jlox uses. Use an exception to walk
+        // back up the stack. Here we'll use a specific error, and rely on storing
+        // the value in self.ret
+        return error.ReturnValue;
     }
 
     fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {

@@ -58,6 +58,7 @@ pub const Parser = struct {
         if (self.match(&.{.FOR})) return self.forStatement();
         if (self.match(&.{.IF})) return self.ifStatement();
         if (self.match(&.{.PRINT})) return self.printStatement();
+        if (self.match(&.{.RETURN})) return self.returnStatement();
         if (self.match(&.{.WHILE})) return self.whileStatement();
         if (self.match(&.{.LEFT_BRACE}))
             return Stmt.Block.create(self.allocator, try self.block()).toStmt();
@@ -134,6 +135,16 @@ pub const Parser = struct {
         return Stmt.Print.create(self.allocator, value).toStmt();
     }
 
+    fn returnStatement(self: *Self) ParseError!Stmt.Stmt {
+        var keyword = self.previous();
+        var value: ?Expr.Expr = null;
+        if (!self.check(.SEMICOLON)) {
+            value = try self.expression();
+        }
+        _ = try self.consume(.SEMICOLON, "Expect ';' after return value.");
+        return Stmt.Return.create(self.allocator, keyword, value).toStmt();
+    }
+
     fn varDeclaration(self: *Self) ParseError!Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect variable name.");
 
@@ -163,9 +174,7 @@ pub const Parser = struct {
     fn function(self: *Self, kind: []const u8) ParseError!Stmt.Stmt {
         // TODO allocate string :\
         _ = kind;
-        std.debug.print("kind: {s}\n", .{kind});
         var name = try self.consume(.IDENTIFIER, "Expect <kind> name.");
-        std.debug.print("name: {s}\n", .{name.lexeme});
         _ = try self.consume(.LEFT_PAREN, "Expect '(' after <kind> name.");
         var parameters = std.ArrayList(Token).init(self.allocator);
         if (!self.check(.RIGHT_PAREN)) {

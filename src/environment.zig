@@ -26,10 +26,18 @@ pub const Environment = struct {
     }
 
     pub fn get(self: Self, name: Token) EnvironmentError!Object {
+        
+        //std.debug.print("getting: {s} in {*}\n", .{name.lexeme, &self});
+        //var it = self.values.keyIterator();
+        //while (it.next()) |k| {
+        //    std.debug.print(" key: {s}\n", .{k.*});
+        //}
+
         if (self.values.contains(name.lexeme)) {
             return self.values.get(name.lexeme).?;
         }
         if (self.enclosing != null) return self.enclosing.?.get(name);
+        std.log.err("Reached top of enclosing environments\n", .{});
         return error.UnknownVariable;
     }
 

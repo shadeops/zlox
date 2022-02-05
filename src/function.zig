@@ -43,15 +43,26 @@ pub const LoxFunction = struct {
     ) anyerror!Object {
         var self = castToConstSelf(Self, ptr);
 
-        var environment = interpreter.allocator.create(Environment) catch unreachable;
         // using the interpreter's is probably bad form
+        var environment = interpreter.allocator.create(Environment) catch unreachable;
+        defer interpreter.allocator.destroy(environment);
         environment.* = Environment.init(interpreter.allocator);
+        environment.enclosing = interpreter.globals;
 
         for (arguments.items) |arg, i| {
             environment.define(self.declaration.params.items[i].lexeme, arg);
         }
 
-        try interpreter.executeBlock(self.declaration.body, environment);
+        // This mimics what jlox is doing; using a "exception" for control flow.
+        // Here we validate that it isn't null (which it shoudln't be) then if it
+        // was a ReturnValue "error" we are exiting a call(), so return the stashed
+        // interpreter.ret otherwise bubble up whatever error it was.
+        interpreter.executeBlock(self.declaration.body, environment) catch |err| {
+            switch (err) {
+                error.ReturnValue => return interpreter.ret orelse return err,
+                else => return err,
+            }
+        };
         return Object.initNil();
     }
 
