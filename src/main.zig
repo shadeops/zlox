@@ -11,6 +11,13 @@ var interpreter: Interpreter = undefined;
 var had_error: bool = false;
 var had_runtime_error: bool = false;
 
+/// NOTES:
+///  * There is some cheating going on with memory. By using the arena allocator
+///     we are allocating without worrying about cleaning up. This isn't great
+///     as we hang onto everything until the end of execution but simplifies
+///     the code for now.
+// TODO: Investigate being more rigorous with memory clean-up instead of relying
+//  on the arena.
 pub fn main() anyerror!void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -44,7 +51,7 @@ fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
     var source = file.readToEndAlloc(allocator, 1024 * 1024 * 1024) catch |err| {
         switch (err) {
             error.FileTooBig => {
-                std.log.err("Could not open {s}, bigger than 1GB", .{path});
+                std.log.err("Could not open {s}, larger than 1GB", .{path});
                 return;
             },
             else => unreachable,
@@ -66,17 +73,18 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
     _ = allocator;
     const stdout = std.io.getStdOut();
     const stdin = std.io.getStdIn();
-    // NOTE:
-    // we can't use a buffer because we many of our objects reference slices
-    // of the input stream. Until the various code paths are updated to take ownership
-    // we'll use the allocator.
+    const buf_size = 1024;
+    // NOTES:
+    //  * We can't use a buffer because we many of our objects reference slices
+    //      of the input stream. Until the various code paths are updated to take ownership
+    //      we'll use the allocator.
     //var buffer: [1024]u8 = undefined;
     while (true) {
         try stdout.writeAll("> ");
-        const input = stdin.reader().readUntilDelimiterAlloc(allocator, '\n', 1024) catch |err| {
+        const input = stdin.reader().readUntilDelimiterAlloc(allocator, '\n', buf_size) catch |err| {
             switch (err) {
                 error.StreamTooLong => {
-                    std.log.err("Input too big (more than 1024 characters)", .{});
+                    std.log.err("Input too big (more than {} characters)", .{buf_size});
                     continue;
                 },
                 error.EndOfStream => return,
@@ -91,9 +99,11 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
     return;
 }
 
+/// NOTES:
+///  * We can't deinit the scanner or tokens here as this function needs to be
+///     reentered when using the REPL (runPrompt)
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
-    //defer token_scanner.deinit();
 
     var tokens = try token_scanner.scanTokens();
     //for (tokens.items) |t| {
@@ -108,15 +118,15 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
 
     if (had_error) return;
 
-    //var printer = ast_printer.AstPrinter.init(allocator);
-    //defer printer.deinit();
-    //try printer.print(expression);
-
     interpreter.interpret(statements);
 
     return;
 }
 
+// TODO: Audit the error workflow. Currently this is possibly
+// out of sync with what jlox is doing partly because we can't
+// easily capture extra data as with Java when raising excepions.
+// Currently the approach isn't consistent.
 pub fn lineError(line: u32, message: []const u8) void {
     report(line, "", message);
 }
@@ -143,11 +153,4 @@ pub fn runtimeError(message: []const u8) void {
 pub fn report(line: u32, where: []const u8, message: []const u8) void {
     std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });
     had_error = true;
-}
-
-test "basic test" {
-    const s = "hello there";
-    var slice: []const u8 = s[0..5];
-    std.debug.print("{s}", .{slice[0..5]});
-    try std.testing.expectEqual(slice.len, 5);
 }

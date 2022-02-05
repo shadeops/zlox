@@ -4,26 +4,28 @@ const Token = @import("token.zig").Token;
 
 const EnvironmentError = error{
     UndefinedVariable,
+    UnknownVariable,
 };
 
 pub const Environment = struct {
     const Self = @This();
-    values: std.StringHashMap(?Object),
+    values: std.StringHashMap(Object),
     enclosing: ?*Environment,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .values = std.StringHashMap(?Object).init(allocator),
+            .values = std.StringHashMap(Object).init(allocator),
             .enclosing = null,
         };
     }
 
+    /// NOTES:
+    ///   * Cleanup of self.enclosing Environment the responsiblity of the caller
     pub fn deinit(self: *Self) void {
         self.values.deinit();
-        // leave the enclosing Environment the responsiblity of the caller
     }
 
-    pub fn get(self: Self, name: Token) !?Object {
+    pub fn get(self: Self, name: Token) EnvironmentError!Object {
         if (self.values.contains(name.lexeme)) {
             return self.values.get(name.lexeme).?;
         }
@@ -31,10 +33,10 @@ pub const Environment = struct {
         return error.UnknownVariable;
     }
 
-    pub fn assign(self: *Self, name: Token, value: ?Object) EnvironmentError!void {
+    pub fn assign(self: *Self, name: Token, value: Object) EnvironmentError!void {
         if (self.values.contains(name.lexeme)) {
             self.values.put(name.lexeme, value) catch {
-                std.debug.print("Environment: failed to assign {s}\n", .{name});
+                std.log.err("Environment: failed to assign {s}\n", .{name});
             };
             return;
         }
@@ -42,16 +44,16 @@ pub const Environment = struct {
         if (self.enclosing != null) {
             var parent: *Environment = self.enclosing.?;
             assign(parent, name, value) catch {
-                std.debug.print("Environment: failed to assign to outer scope", .{});
+                std.log.err("Environment: failed to assign to outer scope", .{});
             };
             return;
         }
         return error.UndefinedVariable;
     }
 
-    pub fn define(self: *Self, name: []const u8, value: ?Object) void {
+    pub fn define(self: *Self, name: []const u8, value: Object) void {
         self.values.put(name, value) catch {
-            std.debug.print("Environment: failed to define {s}\n", .{name});
+            std.log.err("Environment: failed to define {s}\n", .{name});
         };
     }
 };

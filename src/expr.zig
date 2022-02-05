@@ -68,9 +68,11 @@ pub const VisitorInterface = struct {
     }
 };
 
-// TODO
-// Work around the fact we need type introspection at runtime in
-// the Parser.assignment
+/// NOTES:
+///  * We need introspection into the union in parser.Parser.assignment()
+///     Given the state at the time we don't now what field is active in the
+///     union so need to store an ExprType as part of Expr so we can handle the
+///     type. Initially the goal was to avoid having to do this.
 pub const ExprType = enum {
     ASSIGN,
     BINARY,
@@ -86,6 +88,13 @@ pub const ExprType = enum {
     VARIABLE,
 };
 
+/// NOTES:
+///  * We use the interface pattern here so we can build structures of Expr types
+///     and cast their implementations back to their original types to operate on
+///     them. Additionally the visitor pattern is also using the interface pattern.
+///  * It is a compile error to use !void instead of anyerror!void. We should be
+///     able to define proper errors once we clean up our usages of try.
+// TODO: Avoid using try blindly, catch errors or return named ones.
 pub const Expr = struct {
     impl: *const anyopaque,
     expr_type: ExprType,
@@ -97,6 +106,7 @@ pub const Expr = struct {
     }
 };
 
+/// Helper function to cast an opaque interface pointer to the proper type
 fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
     const alignment = @alignOf(T);
     const self = @ptrCast(*const T, @alignCast(alignment, ptr));
@@ -115,6 +125,7 @@ pub const Assign = struct {
         };
     }
 
+    /// Creator owns the memory and is responsible for destroying it
     pub fn create(allocator: std.mem.Allocator, name: Token, value: Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name, value);
@@ -277,15 +288,15 @@ pub const Grouping = struct {
 
 pub const Literal = struct {
     const Self = @This();
-    value: ?Object = null,
+    value: Object,
 
-    pub fn init(value: ?Object) Self {
+    pub fn init(value: Object) Self {
         return .{
             .value = value,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, value: ?Object) *Self {
+    pub fn create(allocator: std.mem.Allocator, value: Object) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(value);
         return ptr;
@@ -499,7 +510,7 @@ pub const Variable = struct {
 
 test "Expr.ptrs" {
     const a = std.testing.allocator;
-    var x = Literal.create(a, null);
+    var x = Literal.create(a, Object.initNil());
     var interface = x.toExpr();
     try std.testing.expect(interface.expr_type == .LITERAL);
     std.debug.print("\n", .{});
@@ -509,7 +520,7 @@ test "Expr.ptrs" {
     std.debug.print("impl {*}\n", .{(interface.impl)});
     std.debug.print("&impl {}\n", .{&(interface.impl)});
     a.destroy(x);
-    x = Literal.create(a, null);
+    x = Literal.create(a, Object.initNil());
     //try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
     std.debug.print("x: {*}\n", .{x});
     std.debug.print("&x: {}\n", .{&x});

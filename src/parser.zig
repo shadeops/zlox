@@ -42,10 +42,12 @@ pub const Parser = struct {
     }
 
     fn declaration(self: *Self) ParseError!?Stmt.Stmt {
+        if (self.match(&.{.FUN})) {
+            return try self.function("function");
+        }
         if (self.match(&.{.VAR})) {
             return self.varDeclaration() catch {
                 self.synchronize();
-                // TODO nulls in the statement list aren't supported yet
                 return null;
             };
         }
@@ -94,22 +96,21 @@ pub const Parser = struct {
             var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
             try list.append(body);
             try list.append(Stmt.Expression.create(self.allocator, increment.?).toStmt());
-            body = Stmt.Block.create(self.allocator, list).toStmt(); 
+            body = Stmt.Block.create(self.allocator, list).toStmt();
         }
 
         if (condition == null)
             condition = Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
-        body = Stmt.While.create(self.allocator, condition.?, body).toStmt(); 
+        body = Stmt.While.create(self.allocator, condition.?, body).toStmt();
 
         if (initializer != null) {
             var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
             try list.append(initializer.?);
             try list.append(body);
-            body = Stmt.Block.create(self.allocator, list).toStmt(); 
+            body = Stmt.Block.create(self.allocator, list).toStmt();
         }
 
         return body;
-
     }
 
     fn ifStatement(self: *Self) ParseError!Stmt.Stmt {
@@ -159,6 +160,29 @@ pub const Parser = struct {
         return Stmt.Expression.create(self.allocator, expr).toStmt();
     }
 
+    fn function(self: *Self, kind: []const u8) ParseError!Stmt.Stmt {
+        // TODO allocate string :\
+        _ = kind;
+        std.debug.print("kind: {s}\n", .{kind});
+        var name = try self.consume(.IDENTIFIER, "Expect <kind> name.");
+        std.debug.print("name: {s}\n", .{name.lexeme});
+        _ = try self.consume(.LEFT_PAREN, "Expect '(' after <kind> name.");
+        var parameters = std.ArrayList(Token).init(self.allocator);
+        if (!self.check(.RIGHT_PAREN)) {
+            try parameters.append(try self.consume(.IDENTIFIER, "Expect parameter name."));
+            while (self.match(&.{.COMMA})) {
+                if (parameters.items.len >= 255) {
+                    try reportError(self.peek(), "Can't have more than 255 parameters.");
+                }
+                try parameters.append(try self.consume(.IDENTIFIER, "Expect parameter name."));
+            }
+        }
+        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after parameters");
+        _ = try self.consume(.LEFT_BRACE, "Expect '{' before <kind> body.");
+        var body = try self.block();
+        return Stmt.Function.create(self.allocator, name, parameters, body).toStmt();
+    }
+
     fn block(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
         var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
         while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
@@ -200,7 +224,7 @@ pub const Parser = struct {
 
         return expr;
     }
-    
+
     fn andOp(self: *Self) ParseError!Expr.Expr {
         var expr = try self.equality();
 
@@ -268,7 +292,37 @@ pub const Parser = struct {
             return Expr.Unary.create(self.allocator, operator, right).toExpr();
         }
 
-        return try self.primary();
+        return try self.call();
+    }
+
+    fn finishCall(self: *Self, callee: Expr.Expr) ParseError!Expr.Expr {
+        var arguments = std.ArrayList(Expr.Expr).init(self.allocator);
+        if (!self.check(.RIGHT_PAREN)) {
+            try arguments.append(try self.expression());
+            while (self.match(&.{.COMMA})) {
+                if (arguments.items.len >= 255) {
+                    try reportError(self.peek(), "Can't have more than 255 arguments.");
+                }
+                try arguments.append(try self.expression());
+            }
+        }
+
+        var paren = try self.consume(.RIGHT_PAREN, "Expect ')' after arguments.");
+        return Expr.Call.create(self.allocator, callee, paren, arguments).toExpr();
+    }
+
+    fn call(self: *Self) ParseError!Expr.Expr {
+        var expr = try self.primary();
+
+        while (true) {
+            if (self.match(&.{.LEFT_PAREN})) {
+                expr = try self.finishCall(expr);
+            } else {
+                break;
+            }
+        }
+
+        return expr;
     }
 
     fn primary(self: *Self) ParseError!Expr.Expr {
@@ -277,7 +331,7 @@ pub const Parser = struct {
         if (self.match(&.{.TRUE}))
             return Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
         if (self.match(&.{.NIL}))
-            return Expr.Literal.create(self.allocator, null).toExpr();
+            return Expr.Literal.create(self.allocator, Object.initNil()).toExpr();
 
         if (self.match(&.{ .NUMBER, .STRING }))
             return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
@@ -359,9 +413,9 @@ test "Parser.check" {
 
     var tokens = std.ArrayList(Token).init(a);
     defer tokens.deinit();
-    try tokens.append(.{ .token_type = .MINUS, .lexeme = "-", .literal = null, .line = 1 });
-    try tokens.append(.{ .token_type = .PLUS, .lexeme = "+", .literal = null, .line = 1 });
-    try tokens.append(.{ .token_type = .EOF, .lexeme = "", .literal = null, .line = 1 });
+    try tokens.append(.{ .token_type = .MINUS, .lexeme = "-", .literal = Object.initNil(), .line = 1 });
+    try tokens.append(.{ .token_type = .PLUS, .lexeme = "+", .literal = Object.initNil(), .line = 1 });
+    try tokens.append(.{ .token_type = .EOF, .lexeme = "", .literal = Object.initNil(), .line = 1 });
 
     var parser = Parser.init(a, tokens);
     try std.testing.expect(parser.check(.MINUS));

@@ -71,7 +71,6 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 
 pub const Block = struct {
     const Self = @This();
-    // TODO consider using [] Stmt
     statements: std.ArrayList(Stmt),
 
     pub fn init(statements: std.ArrayList(Stmt)) Self {

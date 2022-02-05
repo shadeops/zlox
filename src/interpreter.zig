@@ -1,7 +1,9 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
-const Object = @import("object.zig").Object;
+const LoxFunction = @import("function.zig").LoxFunction;
+const LoxCallable = @import("callable.zig").LoxCallable;
 const Environment = @import("environment.zig").Environment;
+const Object = @import("object.zig").Object;
 const Expr = @import("expr.zig");
 const Stmt = @import("stmt.zig");
 
@@ -13,27 +15,75 @@ fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     return self;
 }
 
+/// NOTES:
+///  * In jlox defining the clock function is done directly in the Interpreter's
+///     constructor. Here we are doing it outside due to needing to be a bit more
+///     verbose in its construction.
+const ClockCall = struct {
+    const Self = @This();
+    arity: u8 = 0,
+
+    pub fn create(allocator: std.mem.Allocator) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+        ptr.* = Self{};
+        return ptr;
+    }
+
+    pub fn toCallable(self: *Self) LoxCallable {
+        return .{
+            .impl = @ptrCast(*const anyopaque, self),
+            .arity = self.arity,
+            .callFn = call,
+            .toStringFn = toString,
+        };
+    }
+
+    fn call(
+        ptr: *const anyopaque,
+        interpreter: *Interpreter,
+        arguments: std.ArrayList(Object),
+    ) anyerror!Object {
+        _ = ptr;
+        _ = interpreter;
+        _ = arguments;
+        return Object.initNumber(@intToFloat(f64, std.time.timestamp()));
+    }
+
+    fn toString(ptr: *const anyopaque) []const u8 {
+        _ = ptr;
+        return "<native fn>";
+    }
+};
+
 pub const Interpreter = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
     environment: *Environment,
+    globals: *Environment,
 
     // we capture the return value here instead of returning
     // a generic structure
     ret: ?Object = null,
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        var environment = allocator.create(Environment) catch unreachable;
-        environment.* = Environment.init(allocator);
+        var globals = allocator.create(Environment) catch unreachable;
+        globals.* = Environment.init(allocator);
+
+        var clockcall = ClockCall.create(allocator);
+        var callable = allocator.create(LoxCallable) catch unreachable;
+        callable.* = clockcall.toCallable();
+        globals.define("clock", Object.initCallable(callable));
+
         return .{
             .allocator = allocator,
-            .environment = environment,
+            .environment = globals,
+            .globals = globals,
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.environment.deinit();
-        self.allocator.destroy(self.environment);
+        self.allocator.destroy(self.globals);
     }
 
     pub fn exprInterface(self: *Self) Expr.VisitorInterface {
@@ -69,6 +119,9 @@ pub const Interpreter = struct {
         };
     }
 
+    // TODO: Similarly noted in main.zig, handling of errors is a bit out of sync
+    // with jlox. Ideally we behave in a similar manner but for now is being
+    // neglected while figuring out other details.
     pub fn interpret(self: *Self, statements: std.ArrayList(?Stmt.Stmt)) void {
         for (statements.items) |statement| {
             if (statement == null) {
@@ -98,57 +151,80 @@ pub const Interpreter = struct {
         switch (expr.operator.token_type) {
             .GREATER => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.?.value.number > right.?.value.number);
+                self.ret = Object.initBoolean(left.value.number > right.value.number);
             },
             .GREATER_EQUAL => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.?.value.number >= right.?.value.number);
+                self.ret = Object.initBoolean(left.value.number >= right.value.number);
             },
             .LESS => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.?.value.number < right.?.value.number);
+                self.ret = Object.initBoolean(left.value.number < right.value.number);
             },
             .LESS_EQUAL => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.?.value.number <= right.?.value.number);
+                self.ret = Object.initBoolean(left.value.number <= right.value.number);
             },
             .MINUS => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number - right.?.value.number);
+                self.ret = Object.initNumber(left.value.number - right.value.number);
             },
             .PLUS => {
-                if (left == null or right == null) return error.OperandError;
-                if (left.?.isType(.NUMBER) and right.?.isType(.NUMBER)) {
-                    self.ret = Object.initNumber(left.?.value.number + right.?.value.number);
+                if (left.isType(.NUMBER) and right.isType(.NUMBER)) {
+                    self.ret = Object.initNumber(left.value.number + right.value.number);
                     return;
                 }
-                if (left.?.isType(.STRING) and right.?.isType(.STRING)) {
-                    var strs = [_][]const u8{ left.?.value.string, right.?.value.string };
+                if (left.isType(.STRING) and right.isType(.STRING)) {
+                    var strs = [_][]const u8{ left.value.string, right.value.string };
                     var new_str = std.mem.concat(self.allocator, u8, &strs) catch unreachable;
                     self.ret = Object.initString(new_str);
                     return;
                 }
+                std.log.err("Operand must be two numbers or two strings.", .{});
                 return error.OperandError;
-                //std.info.err("Operand must be two numbers or two strings.", .{});
             },
             .SLASH => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number / right.?.value.number);
+                self.ret = Object.initNumber(left.value.number / right.value.number);
             },
             .STAR => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.?.value.number * right.?.value.number);
+                self.ret = Object.initNumber(left.value.number * right.value.number);
             },
             .BANG_EQUAL => self.ret = Object.initBoolean(!isEqual(left, right)),
             .EQUAL_EQUAL => self.ret = Object.initBoolean(isEqual(left, right)),
-            else => return,
+            else => unreachable,
         }
         return;
     }
 
     fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+
+        var callee = try self.evaluate(expr.callee);
+
+        var arguments = std.ArrayList(Object).init(self.allocator);
+        for (expr.arguments.items) |argument| {
+            try arguments.append(try self.evaluate(argument));
+        }
+
+        if (!callee.isType(.CALLABLE)) {
+            std.log.err("Can only call functions and classes.", .{});
+            return error.CallableError;
+        }
+
+        var function = callee.value.callable;
+
+        if (arguments.items.len != function.arity) {
+            std.log.err(
+                "Expected {} arguments but got {}.",
+                .{ function.arity, arguments.items.len },
+            );
+            return error.CallableError;
+        }
+
+        self.ret = try function.call(self, arguments);
     }
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
         _ = ptr;
@@ -202,7 +278,7 @@ pub const Interpreter = struct {
             },
             .MINUS => {
                 try checkNumberOperand(expr.operator, right);
-                self.ret = Object.initNumber(-right.?.value.number);
+                self.ret = Object.initNumber(-right.value.number);
             },
             else => {
                 self.ret = null;
@@ -215,27 +291,28 @@ pub const Interpreter = struct {
         self.ret = try self.environment.get(expr.name);
     }
 
-    fn checkNumberOperand(operator: Token, operand: ?Object) !void {
+    fn checkNumberOperand(operator: Token, operand: Object) !void {
         _ = operator;
-        if (operand != null and operand.?.isType(.NUMBER)) return;
-        //std.info.err("Operand must be a number.", .{});
+        if (operand.isType(.NUMBER)) return;
+        std.log.err("Operand must be a number.", .{});
         return error.OperandError;
     }
 
-    fn checkNumberOperands(operator: Token, left: ?Object, right: ?Object) !void {
+    fn checkNumberOperands(operator: Token, left: Object, right: Object) !void {
         _ = operator;
-        if (left == null or right == null) return error.OperandError;
-        if (left.?.isType(.NUMBER) and right.?.isType(.NUMBER)) return;
-        //std.info.err("Operands must be a number.", .{});
+        if (left.isType(.NUMBER) and right.isType(.NUMBER)) return;
+        std.log.err("Operands must be a number.", .{});
         return error.OperandError;
     }
 
-    fn evaluate(self: *Self, expr: Expr.Expr) !?Object {
+    fn evaluate(self: *Self, expr: Expr.Expr) !Object {
         var iface = self.exprInterface();
         // Whichever Expr accepts the Interpreter Interface which will
         // update the Interpreter's ret value
         try expr.accept(&iface);
-        return self.ret;
+        // while we are setting self.ret to null in various places
+        // if we hit one something has gone wrong as it should be unreachable.
+        return self.ret orelse unreachable;
     }
 
     fn execute(self: *Self, stmt: Stmt.Stmt) !void {
@@ -243,7 +320,11 @@ pub const Interpreter = struct {
         try stmt.accept(&iface);
     }
 
-    fn executeBlock(self: *Self, statements: std.ArrayList(Stmt.Stmt), environment: *Environment) !void {
+    pub fn executeBlock(
+        self: *Self,
+        statements: std.ArrayList(Stmt.Stmt),
+        environment: *Environment,
+    ) !void {
         var previous = self.environment;
         defer self.environment = previous;
 
@@ -275,8 +356,12 @@ pub const Interpreter = struct {
     }
 
     fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Function) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+        var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
+        callable_ptr.* = LoxFunction.create(self.allocator, stmt.*).toCallable();
+        var function = Object.initCallable(callable_ptr);
+        self.environment.define(stmt.name.lexeme, function);
     }
 
     fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
@@ -284,7 +369,7 @@ pub const Interpreter = struct {
         self.ret = null;
         if (isTruthy(try self.evaluate(stmt.condition))) {
             try self.execute(stmt.then_branch);
-        } else if ( stmt.else_branch != null ) {
+        } else if (stmt.else_branch != null) {
             try self.execute(stmt.else_branch.?);
         }
     }
@@ -305,7 +390,7 @@ pub const Interpreter = struct {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
-        var value: ?Object = null;
+        var value = Object.initNil();
         if (stmt.initializer != null) {
             value = try self.evaluate(stmt.initializer.?);
         }
@@ -322,31 +407,28 @@ pub const Interpreter = struct {
         }
     }
 
-    fn isTruthy(object: ?Object) bool {
-        if (object == null) return false;
-        if (object.?.isType(.BOOLEAN)) return object.?.value.boolean;
+    fn isTruthy(object: Object) bool {
+        if (object.isType(.NIL)) return false;
+        if (object.isType(.BOOLEAN)) return object.value.boolean;
         return true;
     }
 
-    fn isEqual(a: ?Object, b: ?Object) bool {
-        if (a == null and b == null) return true;
-        if (a == null or b == null) return false;
-        if (!a.?.isType(b.?.vtype)) return false;
-        switch (a.?.vtype) {
-            .NUMBER => return a.?.value.number == b.?.value.number,
-            .BOOLEAN => return a.?.value.boolean == b.?.value.boolean,
-            .STRING => return std.mem.eql(u8, a.?.value.string, b.?.value.string),
+    fn isEqual(a: Object, b: Object) bool {
+        if (a.isType(.NIL) and b.isType(.NIL)) return true;
+        if (a.isType(.NIL) or b.isType(.NIL)) return false;
+        if (!a.isType(b.vtype)) return false;
+        switch (a.vtype) {
+            .NUMBER => return a.value.number == b.value.number,
+            .BOOLEAN => return a.value.boolean == b.value.boolean,
+            .STRING => return std.mem.eql(u8, a.value.string, b.value.string),
+            else => return false,
         }
         return false;
     }
 
-    fn stringify(self: *Self, object: ?Object) void {
+    fn stringify(self: *Self, object: Object) void {
         const stdout = std.io.getStdOut();
         const writer = stdout.writer();
-        if (object == null) {
-            writer.print("nil\n", .{}) catch unreachable;
-            return;
-        }
-        writer.print("{s}\n", .{object.?.toString(self.allocator)}) catch unreachable;
+        writer.print("{s}\n", .{object.toString(self.allocator)}) catch unreachable;
     }
 };
