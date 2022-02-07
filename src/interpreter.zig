@@ -60,6 +60,7 @@ pub const Interpreter = struct {
     allocator: std.mem.Allocator,
     environment: *Environment,
     globals: *Environment,
+    locals: std.AutoHashMap(Expr.Expr, usize),
 
     // we capture the return value here instead of returning
     // a generic structure
@@ -78,11 +79,13 @@ pub const Interpreter = struct {
             .allocator = allocator,
             .environment = globals,
             .globals = globals,
+            .locals = std.AutoHashMap(Expr.Expr, usize).init(allocator),
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.environment.deinit();
+        self.locals.deinit();
         self.allocator.destroy(self.globals);
     }
 
@@ -122,13 +125,9 @@ pub const Interpreter = struct {
     // TODO: Similarly noted in main.zig, handling of errors is a bit out of sync
     // with jlox. Ideally we behave in a similar manner but for now is being
     // neglected while figuring out other details.
-    pub fn interpret(self: *Self, statements: std.ArrayList(?Stmt.Stmt)) void {
+    pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
         for (statements.items) |statement| {
-            if (statement == null) {
-                runtimeError("Invalid statement");
-                continue;
-            }
-            self.execute(statement.?) catch |err| {
+            self.execute(statement) catch |err| {
                 runtimeError(@errorName(err));
             };
         }
@@ -138,7 +137,13 @@ pub const Interpreter = struct {
         const self = castToSelf(Self, ptr);
 
         var value = try self.evaluate(expr.value);
-        try self.environment.assign(expr.name, value);
+
+        var distance = self.locals.get(expr.toExpr());
+        if (distance != null) {
+            self.environment.assignAt(distance.?, expr.name, value);
+        } else {
+            try self.globals.assign(expr.name, value);
+        }
         self.ret = value;
     }
 
@@ -287,8 +292,15 @@ pub const Interpreter = struct {
     }
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         const self = castToSelf(Self, ptr);
+        self.ret = try self.lookUpVariable(expr.name, expr.toExpr());
+    }
 
-        self.ret = try self.environment.get(expr.name);
+    fn lookUpVariable(self: *Self, name: Token, expr: Expr.Expr) !Object {
+        var distance = self.locals.get(expr);
+        if (distance != null) {
+            return try self.environment.getAt(distance.?, name.lexeme);
+        }
+        return self.globals.get(name);
     }
 
     fn checkNumberOperand(operator: Token, operand: Object) !void {
@@ -318,6 +330,10 @@ pub const Interpreter = struct {
     fn execute(self: *Self, stmt: Stmt.Stmt) !void {
         var iface = self.stmtInterface();
         try stmt.accept(&iface);
+    }
+
+    pub fn resolve(self: *Self, expr: Expr.Expr, depth: usize) !void {
+        try self.locals.put(expr, depth);
     }
 
     pub fn executeBlock(

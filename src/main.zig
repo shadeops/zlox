@@ -4,6 +4,7 @@ const ast_printer = @import("ast_printer.zig");
 
 const Interpreter = @import("interpreter.zig").Interpreter;
 const Parser = @import("parser.zig").Parser;
+const Resolver = @import("resolver.zig").Resolver;
 const Token = @import("token.zig").Token;
 
 var interpreter: Interpreter = undefined;
@@ -43,7 +44,7 @@ pub fn main() anyerror!void {
 
 fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
     std.log.info("Running {s}", .{path});
-    var file = std.fs.cwd().openFile(path, .{ .read = true, .write = false }) catch |err| {
+    var file = std.fs.cwd().openFile(path, .{}) catch |err| {
         std.log.err("Could not open {s}, error was {s}", .{ path, @errorName(err) });
         return;
     };
@@ -116,6 +117,14 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
         return;
     };
 
+    if (had_error) return;
+
+    var resolver = Resolver.init(allocator, interpreter);
+    resolver.resolveStmts(statements) catch {
+        std.log.err("resolving error\n", .{});
+        return;
+    };
+    
     if (had_error) return;
 
     interpreter.interpret(statements);

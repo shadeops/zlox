@@ -29,10 +29,16 @@ pub const Parser = struct {
         };
     }
 
-    pub fn parse(self: *Self) ParseError!std.ArrayList(?Stmt.Stmt) {
-        var statements = std.ArrayList(?Stmt.Stmt).init(self.allocator);
+    pub fn parse(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
+        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
         while (!self.isAtEnd()) {
-            try statements.append(try self.declaration());
+            // NOTE:
+            //  * In jlox we just append to the statements if it is a null
+            //      or Stmt. For this to avoid having an ArrayList with an optional
+            //      we'll just ignore the null.
+            var decl = try self.declaration();
+            if (decl != null)
+                try statements.append(decl.?);
         }
         return statements;
     }
