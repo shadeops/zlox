@@ -7,6 +7,9 @@ const Parser = @import("parser.zig").Parser;
 const Resolver = @import("resolver.zig").Resolver;
 const Token = @import("token.zig").Token;
 
+//pub const log_level: std.log.Level = .debug;
+pub const log_level: std.log.Level = .info;
+
 var interpreter: Interpreter = undefined;
 
 var had_error: bool = false;
@@ -43,7 +46,7 @@ pub fn main() anyerror!void {
 }
 
 fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
-    std.log.info("Running {s}", .{path});
+    std.log.debug("Running {s}", .{path});
     var file = std.fs.cwd().openFile(path, .{}) catch |err| {
         std.log.err("Could not open {s}, error was {s}", .{ path, @errorName(err) });
         return;
@@ -106,11 +109,10 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
     var token_scanner = try scanner.Scanner.init(allocator, source);
 
+    std.log.debug("Starting scanner", .{});
     var tokens = try token_scanner.scanTokens();
-    //for (tokens.items) |t| {
-    //    std.debug.print("{s}\n", .{t.lexeme});
-    //}
 
+    std.log.debug("Starting parser", .{});
     var parser = Parser.init(allocator, tokens);
     var statements = parser.parse() catch {
         std.log.err("parsing error\n", .{});
@@ -119,14 +121,16 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
 
     if (had_error) return;
 
-    var resolver = Resolver.init(allocator, interpreter);
+    std.log.debug("Starting resolver", .{});
+    var resolver = Resolver.init(allocator, &interpreter);
     resolver.resolveStmts(statements) catch {
-        std.log.err("resolving error\n", .{});
+        std.log.err("resolving error", .{});
         return;
     };
-    
+
     if (had_error) return;
 
+    std.log.debug("Starting interpreter", .{});
     interpreter.interpret(statements);
 
     return;

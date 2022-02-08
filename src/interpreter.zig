@@ -46,7 +46,7 @@ const ClockCall = struct {
         _ = ptr;
         _ = interpreter;
         _ = arguments;
-        return Object.initNumber(@intToFloat(f64, std.time.milliTimestamp())/1000.0);
+        return Object.initNumber(@intToFloat(f64, std.time.milliTimestamp()) / 1000.0);
     }
 
     fn toString(ptr: *const anyopaque) []const u8 {
@@ -401,7 +401,7 @@ pub const Interpreter = struct {
     fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
-        
+
         var value = Object.initNil();
         if (stmt.value != null)
             value = try self.evaluate(stmt.value.?);

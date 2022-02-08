@@ -23,7 +23,11 @@ pub const LoxFunction = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, declaration: Stmt.Function, closure: *Environment,) *Self {
+    pub fn create(
+        allocator: std.mem.Allocator,
+        declaration: Stmt.Function,
+        closure: *Environment,
+    ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(declaration, closure);
         return ptr;

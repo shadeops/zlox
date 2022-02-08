@@ -99,7 +99,8 @@ pub const Scanner = struct {
             } else {
                 try self.addToken(.SLASH, null);
             },
-            ' ', '\r', '\t', '\n' => self.line += 1,
+            ' ', '\r', '\t' => {},
+            '\n' => self.line += 1,
             '"' => try self.string(),
             else => {
                 if (isDigit(c)) {

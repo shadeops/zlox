@@ -26,7 +26,7 @@ pub const Environment = struct {
     }
 
     pub fn get(self: Self, name: Token) EnvironmentError!Object {
-        
+
         //std.debug.print("getting: {s} in {*}\n", .{name.lexeme, &self});
         //var it = self.values.keyIterator();
         //while (it.next()) |k| {
@@ -68,17 +68,17 @@ pub const Environment = struct {
     pub fn getAt(self: *Self, distance: usize, name: []const u8) !Object {
         return self.ancestor(distance).values.get(name).?;
     }
-    
+
     pub fn assignAt(self: *Self, distance: usize, name: Token, value: Object) void {
         return self.ancestor(distance).values.put(name.lexeme, value) catch {
             std.log.err("Environment: failed to put {s}\n", .{name.lexeme});
         };
     }
 
-    fn ancestor(self: * Self, distance: usize) *Environment {
+    fn ancestor(self: *Self, distance: usize) *Environment {
         var environment = self;
         var i: usize = 0;
-        while (i<distance) : (i+=1) {
+        while (i < distance) : (i += 1) {
             environment = environment.enclosing.?;
         }
         return environment;

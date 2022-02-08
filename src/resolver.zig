@@ -20,15 +20,15 @@ const FunctionType = enum {
 pub const Resolver = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
-    interpreter: Interpreter,
-    scopes: std.ArrayList(std.StringHashMap(bool)),
+    interpreter: *Interpreter,
+    scopes: std.ArrayList(*std.StringHashMap(bool)),
     current_function: FunctionType,
 
-    pub fn init(allocator: std.mem.Allocator, interpreter: Interpreter) Self {
+    pub fn init(allocator: std.mem.Allocator, interpreter: *Interpreter) Self {
         return .{
             .allocator = allocator,
             .interpreter = interpreter,
-            .scopes = std.ArrayList(std.StringHashMap(bool)).init(allocator),
+            .scopes = std.ArrayList(*std.StringHashMap(bool)).init(allocator),
             .current_function = .NONE,
         };
     }
@@ -86,7 +86,7 @@ pub const Resolver = struct {
     fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
         const self = castToSelf(Self, ptr);
         try self.resolveExpr(expr.callee);
-        
+
         for (expr.arguments.items) |argument| {
             try self.resolveExpr(argument);
         }
@@ -126,10 +126,21 @@ pub const Resolver = struct {
     }
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         const self = castToSelf(Self, ptr);
+
         if (!self.isEmpty() and
-            self.peek().get(expr.name.lexeme) == false) {
-                try tokenError(expr.name, "Can't read local variable in its own initializer.");
-            }
+            self.peek().get(expr.name.lexeme) != null and
+            self.peek().get(expr.name.lexeme).? == false)
+        {
+            try tokenError(expr.name, "Can't read local variable in its own initializer.");
+        }
+
+        //if (!self.isEmpty() and
+        //    // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        //    // this crashes zig (technically a bug as get returns an optional not a bool
+        //    //self.peek().get(expr.name.lexeme) == false) {
+        //    (self.peek().get(expr.name.lexeme) orelse false) == false) {
+        //        try tokenError(expr.name, "Can't read local variable in its own initializer.");
+        //    }
         try self.resolveLocal(expr.toExpr(), expr.name);
     }
     fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
@@ -160,7 +171,7 @@ pub const Resolver = struct {
         const self = castToSelf(Self, ptr);
         try self.resolveExpr(stmt.condition);
         try self.resolveStmt(stmt.then_branch);
-        if (stmt.else_branch != null )
+        if (stmt.else_branch != null)
             try self.resolveStmt(stmt.else_branch.?);
     }
 
@@ -192,7 +203,7 @@ pub const Resolver = struct {
         try self.resolveExpr(stmt.condition);
         try self.resolveStmt(stmt.body);
     }
-    
+
     // TODO create a single resolve figures out which of the 3 to call
     // via comptime expression
     pub fn resolveStmts(self: *Self, statements: std.ArrayList(Stmt.Stmt)) !void {
@@ -208,7 +219,11 @@ pub const Resolver = struct {
         var iface = self.exprInterface();
         try expr.accept(&iface);
     }
-    fn resolveFunction(self: *Self, function: *const Stmt.Function, function_type: FunctionType,) !void {
+    fn resolveFunction(
+        self: *Self,
+        function: *const Stmt.Function,
+        function_type: FunctionType,
+    ) !void {
         var enclosing_function = self.current_function;
         self.current_function = function_type;
         self.beginScope();
@@ -220,20 +235,24 @@ pub const Resolver = struct {
         self.endScope();
         self.current_function = enclosing_function;
     }
+    // TODO do we need allocate a map?
     fn beginScope(self: *Self) void {
-        self.scopes.append(std.StringHashMap(bool).init(self.allocator)) catch {
+        var map = self.allocator.create(std.StringHashMap(bool)) catch unreachable;
+        map.* = std.StringHashMap(bool).init(self.allocator);
+        self.scopes.append(map) catch {
             std.log.err("Could not append to resolver scope", .{});
         };
     }
     fn endScope(self: *Self) void {
         var scope = self.scopes.pop();
         scope.deinit();
+        self.allocator.destroy(scope);
     }
     fn declare(self: *Self, name: Token) !void {
         if (self.isEmpty()) return;
         var scope = self.peek();
         if (scope.contains(name.lexeme)) {
-            try tokenError(name, "Can't read local variable in its own initializer.");
+            try tokenError(name, "Already a varaible with this name in this scope.");
         }
         try scope.put(name.lexeme, false);
     }
@@ -243,10 +262,10 @@ pub const Resolver = struct {
         try scope.put(name.lexeme, true);
     }
     fn resolveLocal(self: *Self, expr: Expr.Expr, name: Token) !void {
-        var i = self.scopes.items.len-1;
-        while (i >= 0) : (i -= 1) {
+        for (self.scopes.items) |_, idx| {
+            var i = (self.scopes.items.len - 1) - idx;
             if (self.scopes.items[i].contains(name.lexeme)) {
-                try self.interpreter.resolve(expr, self.scopes.items.len-1-i);
+                try self.interpreter.resolve(expr, idx);
                 return;
             }
         }
@@ -254,27 +273,27 @@ pub const Resolver = struct {
     fn isEmpty(self: Self) bool {
         return self.scopes.items.len == 0;
     }
-    fn peek(self: Self) std.StringHashMap(bool) {
-        return self.scopes.items[self.scopes.items.len-1];
+    fn peek(self: Self) *std.StringHashMap(bool) {
+        return self.scopes.items[self.scopes.items.len - 1];
     }
 };
 
 test "Resolver.maptest" {
-    var stack =  std.ArrayList(std.StringHashMap(bool)).init(std.testing.allocator);
-    defer stack.deinit();
-    try stack.append(std.StringHashMap(bool).init(std.testing.allocator));
-    defer {
-        for (stack.items) |*map| {
-            map.deinit();
-        }
-    }
-    try stack.items[0].put("a", true);
-    try std.testing.expect(stack.items[0].get("a").?);
-    var a = stack.items[0];
-    try std.testing.expect(a.get("a").?);
-    try a.put("b", true);
-    try std.testing.expect(a.get("b").?);
-    try std.testing.expect(stack.items[0].get("b").?);
+    //    var stack =  std.ArrayList(std.StringHashMap(bool)).init(std.testing.allocator);
+    //    defer stack.deinit();
+    //    try stack.append(std.StringHashMap(bool).init(std.testing.allocator));
+    //    defer {
+    //        for (stack.items) |*map| {
+    //            map.deinit();
+    //        }
+    //    }
+    //    try stack.items[0].put("a", true);
+    //    try std.testing.expect(stack.items[0].get("a").?);
+    //    var a = stack.items[0];
+    //    try std.testing.expect(a.get("a").?);
+    //    try a.put("b", true);
+    //    try std.testing.expect(a.get("b").?);
+    //    try std.testing.expect(stack.items[0].get("b").?);
 }
 
 fn getExpr(x: *Expr.Literal) Expr.Expr {
@@ -283,17 +302,17 @@ fn getExpr(x: *Expr.Literal) Expr.Expr {
 }
 
 test "Resolve.ptrmap" {
-    const Object = @import("object.zig").Object;
-    var literal_a = Expr.Literal.create(std.testing.allocator, Object.initNumber(1));
-    defer std.testing.allocator.destroy(literal_a);
-    var expr_a = literal_a.toExpr();
-    var literal_b = Expr.Literal.create(std.testing.allocator, Object.initNumber(2));
-    defer std.testing.allocator.destroy(literal_b);
-    var expr_b = literal_b.toExpr();
-    var expr_c = getExpr(literal_a);
-    var map = std.AutoHashMap(Expr.Expr, usize).init(std.testing.allocator);
-    defer map.deinit();
-    try map.put(expr_a, 1);
-    try map.put(expr_b, 2);
-    try std.testing.expect(map.get(expr_c).? == 1);
+    //    const Object = @import("object.zig").Object;
+    //    var literal_a = Expr.Literal.create(std.testing.allocator, Object.initNumber(1));
+    //    defer std.testing.allocator.destroy(literal_a);
+    //    var expr_a = literal_a.toExpr();
+    //    var literal_b = Expr.Literal.create(std.testing.allocator, Object.initNumber(2));
+    //    defer std.testing.allocator.destroy(literal_b);
+    //    var expr_b = literal_b.toExpr();
+    //    var expr_c = getExpr(literal_a);
+    //    var map = std.AutoHashMap(Expr.Expr, usize).init(std.testing.allocator);
+    //    defer map.deinit();
+    //    try map.put(expr_a, 1);
+    //    try map.put(expr_b, 2);
+    //    try std.testing.expect(map.get(expr_c).? == 1);
 }
