@@ -231,18 +231,22 @@ pub const Interpreter = struct {
 
         self.ret = try function.call(self, arguments);
     }
+
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = try self.evaluate(expr.expression);
     }
+
     fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = expr.value;
     }
+
     fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
         const self = castToSelf(Self, ptr);
         var left = try self.evaluate(expr.left);
@@ -261,18 +265,22 @@ pub const Interpreter = struct {
 
         self.ret = try self.evaluate(expr.right);
     }
+
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
         const self = castToSelf(Self, ptr);
 
@@ -290,6 +298,7 @@ pub const Interpreter = struct {
             },
         }
     }
+
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = try self.lookUpVariable(expr.name, expr.toExpr());

@@ -35,7 +35,9 @@ pub const Resolver = struct {
 
     pub fn deinit(self: *Self) void {
         self.scopes.deinit();
-        // TODO loop through scopes and deinit the hash maps too
+        // We don't need to destroy/deinit the hash maps as that is done in the
+        // self.endScope()
+        if (self.scopes.items.len != 0) unreachable;
     }
 
     pub fn exprInterface(self: *Self) Expr.VisitorInterface {
@@ -91,39 +93,48 @@ pub const Resolver = struct {
             try self.resolveExpr(argument);
         }
     }
+
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
         const self = castToSelf(Self, ptr);
         try self.resolveExpr(expr.expression);
     }
+
     fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
         const self = castToSelf(Self, ptr);
         try self.resolveExpr(expr.left);
         try self.resolveExpr(expr.right);
     }
+
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         _ = ptr;
         _ = expr;
     }
+
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
         const self = castToSelf(Self, ptr);
         try self.resolveExpr(expr.right);
     }
+
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         const self = castToSelf(Self, ptr);
 
@@ -133,22 +144,16 @@ pub const Resolver = struct {
         {
             try tokenError(expr.name, "Can't read local variable in its own initializer.");
         }
-
-        //if (!self.isEmpty() and
-        //    // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        //    // this crashes zig (technically a bug as get returns an optional not a bool
-        //    //self.peek().get(expr.name.lexeme) == false) {
-        //    (self.peek().get(expr.name.lexeme) orelse false) == false) {
-        //        try tokenError(expr.name, "Can't read local variable in its own initializer.");
-        //    }
         try self.resolveLocal(expr.toExpr(), expr.name);
     }
+
     fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.beginScope();
         try self.resolveStmts(stmt.statements);
         self.endScope();
     }
+
     fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
         const self = castToSelf(Self, ptr);
         _ = self;
@@ -211,14 +216,17 @@ pub const Resolver = struct {
             try self.resolveStmt(statement);
         }
     }
+
     fn resolveStmt(self: *Self, statement: Stmt.Stmt) !void {
         var iface = self.stmtInterface();
         try statement.accept(&iface);
     }
+
     fn resolveExpr(self: *Self, expr: Expr.Expr) !void {
         var iface = self.exprInterface();
         try expr.accept(&iface);
     }
+
     fn resolveFunction(
         self: *Self,
         function: *const Stmt.Function,
@@ -235,7 +243,7 @@ pub const Resolver = struct {
         self.endScope();
         self.current_function = enclosing_function;
     }
-    // TODO do we need allocate a map?
+
     fn beginScope(self: *Self) void {
         var map = self.allocator.create(std.StringHashMap(bool)) catch unreachable;
         map.* = std.StringHashMap(bool).init(self.allocator);
@@ -243,11 +251,13 @@ pub const Resolver = struct {
             std.log.err("Could not append to resolver scope", .{});
         };
     }
+
     fn endScope(self: *Self) void {
         var scope = self.scopes.pop();
         scope.deinit();
         self.allocator.destroy(scope);
     }
+
     fn declare(self: *Self, name: Token) !void {
         if (self.isEmpty()) return;
         var scope = self.peek();
@@ -256,11 +266,13 @@ pub const Resolver = struct {
         }
         try scope.put(name.lexeme, false);
     }
+
     fn define(self: *Self, name: Token) !void {
         if (self.isEmpty()) return;
         var scope = self.peek();
         try scope.put(name.lexeme, true);
     }
+
     fn resolveLocal(self: *Self, expr: Expr.Expr, name: Token) !void {
         for (self.scopes.items) |_, idx| {
             var i = (self.scopes.items.len - 1) - idx;
@@ -270,9 +282,11 @@ pub const Resolver = struct {
             }
         }
     }
+
     fn isEmpty(self: Self) bool {
         return self.scopes.items.len == 0;
     }
+
     fn peek(self: Self) *std.StringHashMap(bool) {
         return self.scopes.items[self.scopes.items.len - 1];
     }
