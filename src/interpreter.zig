@@ -156,31 +156,31 @@ pub const Interpreter = struct {
         switch (expr.operator.token_type) {
             .GREATER => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.value.number > right.value.number);
+                self.ret = Object.initBoolean(left.number > right.number);
             },
             .GREATER_EQUAL => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.value.number >= right.value.number);
+                self.ret = Object.initBoolean(left.number >= right.number);
             },
             .LESS => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.value.number < right.value.number);
+                self.ret = Object.initBoolean(left.number < right.number);
             },
             .LESS_EQUAL => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initBoolean(left.value.number <= right.value.number);
+                self.ret = Object.initBoolean(left.number <= right.number);
             },
             .MINUS => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.value.number - right.value.number);
+                self.ret = Object.initNumber(left.number - right.number);
             },
             .PLUS => {
-                if (left.isType(.NUMBER) and right.isType(.NUMBER)) {
-                    self.ret = Object.initNumber(left.value.number + right.value.number);
+                if (left == .number and right == .number) {
+                    self.ret = Object.initNumber(left.number + right.number);
                     return;
                 }
-                if (left.isType(.STRING) and right.isType(.STRING)) {
-                    var strs = [_][]const u8{ left.value.string, right.value.string };
+                if (left == .string and right == .string) {
+                    var strs = [_][]const u8{ left.string, right.string };
                     var new_str = std.mem.concat(self.allocator, u8, &strs) catch unreachable;
                     self.ret = Object.initString(new_str);
                     return;
@@ -190,11 +190,11 @@ pub const Interpreter = struct {
             },
             .SLASH => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.value.number / right.value.number);
+                self.ret = Object.initNumber(left.number / right.number);
             },
             .STAR => {
                 try checkNumberOperands(expr.operator, left, right);
-                self.ret = Object.initNumber(left.value.number * right.value.number);
+                self.ret = Object.initNumber(left.number * right.number);
             },
             .BANG_EQUAL => self.ret = Object.initBoolean(!isEqual(left, right)),
             .EQUAL_EQUAL => self.ret = Object.initBoolean(isEqual(left, right)),
@@ -214,12 +214,12 @@ pub const Interpreter = struct {
             try arguments.append(try self.evaluate(argument));
         }
 
-        if (!callee.isType(.CALLABLE)) {
+        if (callee != .callable) {
             std.log.err("Can only call functions and classes.", .{});
             return error.CallableError;
         }
 
-        var function = callee.value.callable;
+        var function = callee.callable;
 
         if (arguments.items.len != function.arity) {
             std.log.err(
@@ -291,7 +291,7 @@ pub const Interpreter = struct {
             },
             .MINUS => {
                 try checkNumberOperand(expr.operator, right);
-                self.ret = Object.initNumber(-right.value.number);
+                self.ret = Object.initNumber(-right.number);
             },
             else => {
                 self.ret = null;
@@ -314,14 +314,14 @@ pub const Interpreter = struct {
 
     fn checkNumberOperand(operator: Token, operand: Object) !void {
         _ = operator;
-        if (operand.isType(.NUMBER)) return;
+        if (operand == .number) return;
         std.log.err("Operand must be a number.", .{});
         return error.OperandError;
     }
 
     fn checkNumberOperands(operator: Token, left: Object, right: Object) !void {
         _ = operator;
-        if (left.isType(.NUMBER) and right.isType(.NUMBER)) return;
+        if (left == .number and right == .number) return;
         std.log.err("Operands must be a number.", .{});
         return error.OperandError;
     }
@@ -444,19 +444,21 @@ pub const Interpreter = struct {
     }
 
     fn isTruthy(object: Object) bool {
-        if (object.isType(.NIL)) return false;
-        if (object.isType(.BOOLEAN)) return object.value.boolean;
-        return true;
+        switch (object) {
+            .nil => return false,
+            .boolean => |value| return value,
+            else => return true,
+        }
     }
 
     fn isEqual(a: Object, b: Object) bool {
-        if (a.isType(.NIL) and b.isType(.NIL)) return true;
-        if (a.isType(.NIL) or b.isType(.NIL)) return false;
-        if (!a.isType(b.vtype)) return false;
-        switch (a.vtype) {
-            .NUMBER => return a.value.number == b.value.number,
-            .BOOLEAN => return a.value.boolean == b.value.boolean,
-            .STRING => return std.mem.eql(u8, a.value.string, b.value.string),
+        if (a == .nil and b == .nil) return true;
+        if (a == .nil or b == .nil) return false;
+        if (!a.isSameType(b)) return false;
+        switch (a) {
+            .number => |value| return value == b.number,
+            .boolean => |value| return value == b.boolean,
+            .string => |value| return std.mem.eql(u8, value, b.string),
             else => return false,
         }
         return false;

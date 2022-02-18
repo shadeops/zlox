@@ -19,87 +19,67 @@ const Interpreter = @import("interpreter.zig").Interpreter;
 //  stage 1 bug. Investigate more and determine if it is a misunderstanding on my
 //  part (very likely) or a current limitiation/bug.
 
-pub const ObjectData = union {
+pub const ObjectType = enum {
+    number,
+    string,
+    boolean,
+    callable,
+    nil,
+};
+
+pub const Object = union(ObjectType) {
     number: f64,
     string: []const u8,
     boolean: bool,
     callable: *LoxCallable,
     nil: ?void,
-};
 
-pub const ObjectType = enum {
-    NUMBER,
-    STRING,
-    BOOLEAN,
-    CALLABLE,
-    NIL,
-};
-
-pub const Object = struct {
-    value: ObjectData,
-    vtype: ObjectType,
-
-    pub fn isType(self: Object, object_type: ObjectType) bool {
-        return self.vtype == object_type;
+    pub fn isSameType(self: Object, object: Object) bool {
+        return @as(ObjectType, self) == @as(ObjectType, object);
     }
 
     pub fn initNumber(number: f64) Object {
         return .{
-            .vtype = .NUMBER,
-            .value = ObjectData{
-                .number = number,
-            },
+            .number = number,
         };
     }
 
     pub fn initString(string: []const u8) Object {
         return .{
-            .vtype = .STRING,
-            .value = ObjectData{
-                .string = string,
-            },
+            .string = string,
         };
     }
 
     pub fn initBoolean(boolean: bool) Object {
         return .{
-            .vtype = .BOOLEAN,
-            .value = ObjectData{
-                .boolean = boolean,
-            },
+            .boolean = boolean,
         };
     }
 
     pub fn initCallable(callable: *LoxCallable) Object {
         return .{
-            .vtype = .CALLABLE,
-            .value = ObjectData{
-                .callable = callable,
-            },
+            .callable = callable,
         };
     }
 
     pub fn initNil() Object {
         return .{
-            .vtype = .NIL,
-            .value = ObjectData{
-                .nil = null,
-            },
+            .nil = null,
         };
     }
 
     pub fn toString(self: Object, allocator: std.mem.Allocator) ![]const u8 {
-        switch (self.vtype) {
-            .STRING => return try std.fmt.allocPrint(allocator, "{s}", .{self.value.string}),
-            .NUMBER => return try std.fmt.allocPrint(allocator, "{d}", .{self.value.number}),
-            .BOOLEAN => return try std.fmt.allocPrint(allocator, "{}", .{self.value.boolean}),
-            .CALLABLE => return self.value.callable.toString(),
-            .NIL => return "nil",
+        switch (self) {
+            .string => |value| return try std.fmt.allocPrint(allocator, "{s}", .{value}),
+            .number => |value| return try std.fmt.allocPrint(allocator, "{d}", .{value}),
+            .boolean => |value|  return try std.fmt.allocPrint(allocator, "{}", .{value}),
+            .callable => |value| return value.toString(),
+            .nil => return "nil",
         }
     }
 };
 
 test "Object.nil" {
     var o = Object.initNil();
-    try std.testing.expect(o.value.nil == null);
+    try std.testing.expect(o.nil == null);
 }
