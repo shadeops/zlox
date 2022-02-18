@@ -9,7 +9,11 @@ pub const LoxCallable = struct {
     callFn: fn (*const anyopaque, *Interpreter, std.ArrayList(Object)) anyerror!Object,
     toStringFn: fn (*const anyopaque) []const u8,
 
-    pub fn call(callable: *const LoxCallable, interpreter: *Interpreter, arguments: std.ArrayList(Object)) anyerror!Object {
+    pub fn call(
+        callable: *const LoxCallable,
+        interpreter: *Interpreter,
+        arguments: std.ArrayList(Object),
+    ) anyerror!Object {
         return callable.callFn(callable.impl, interpreter, arguments);
     }
 

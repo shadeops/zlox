@@ -32,7 +32,7 @@ pub const Object = union(ObjectType) {
     string: []const u8,
     boolean: bool,
     callable: *LoxCallable,
-    nil: ?void,
+    nil: void,
 
     pub fn isSameType(self: Object, object: Object) bool {
         return @as(ObjectType, self) == @as(ObjectType, object);
@@ -63,16 +63,14 @@ pub const Object = union(ObjectType) {
     }
 
     pub fn initNil() Object {
-        return .{
-            .nil = null,
-        };
+        return Object.nil;
     }
 
     pub fn toString(self: Object, allocator: std.mem.Allocator) ![]const u8 {
         switch (self) {
             .string => |value| return try std.fmt.allocPrint(allocator, "{s}", .{value}),
             .number => |value| return try std.fmt.allocPrint(allocator, "{d}", .{value}),
-            .boolean => |value|  return try std.fmt.allocPrint(allocator, "{}", .{value}),
+            .boolean => |value| return try std.fmt.allocPrint(allocator, "{}", .{value}),
             .callable => |value| return value.toString(),
             .nil => return "nil",
         }
@@ -81,5 +79,5 @@ pub const Object = union(ObjectType) {
 
 test "Object.nil" {
     var o = Object.initNil();
-    try std.testing.expect(o.nil == null);
+    try std.testing.expect(o == .nil);
 }
