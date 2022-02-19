@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const LoxInstance = @import("instance.zig").LoxInstance;
 const LoxCallable = @import("callable.zig").LoxCallable;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
@@ -24,6 +25,7 @@ pub const ObjectType = enum {
     string,
     boolean,
     callable,
+    instance,
     nil,
 };
 
@@ -31,7 +33,8 @@ pub const Object = union(ObjectType) {
     number: f64,
     string: []const u8,
     boolean: bool,
-    callable: *LoxCallable,
+    callable: *const LoxCallable,
+    instance: *LoxInstance,
     nil: void,
 
     pub fn isSameType(self: Object, object: Object) bool {
@@ -56,9 +59,15 @@ pub const Object = union(ObjectType) {
         };
     }
 
-    pub fn initCallable(callable: *LoxCallable) Object {
+    pub fn initCallable(callable: *const LoxCallable) Object {
         return .{
             .callable = callable,
+        };
+    }
+
+    pub fn initInstance(instance: *LoxInstance) Object {
+        return .{
+            .instance = instance,
         };
     }
 
@@ -72,6 +81,7 @@ pub const Object = union(ObjectType) {
             .number => |value| return try std.fmt.allocPrint(allocator, "{d}", .{value}),
             .boolean => |value| return try std.fmt.allocPrint(allocator, "{}", .{value}),
             .callable => |value| return value.toString(),
+            .instance => |value| return value.toString(),
             .nil => return "nil",
         }
     }

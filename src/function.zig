@@ -1,6 +1,7 @@
 const std = @import("std");
 const Object = @import("object.zig").Object;
 const LoxCallable = @import("callable.zig").LoxCallable;
+const LoxInstance = @import("instance.zig").LoxInstance;
 const Interpreter = @import("interpreter.zig").Interpreter;
 const Environment = @import("environment.zig").Environment;
 const Stmt = @import("stmt.zig");
@@ -15,11 +16,17 @@ pub const LoxFunction = struct {
     const Self = @This();
     declaration: Stmt.Function,
     closure: *Environment,
+    is_initializer: bool,
 
-    pub fn init(declaration: Stmt.Function, closure: *Environment) Self {
+    pub fn init(
+        declaration: Stmt.Function,
+        closure: *Environment,
+        is_initializer: bool,
+    ) Self {
         return .{
             .declaration = declaration,
             .closure = closure,
+            .is_initializer = is_initializer,
         };
     }
 
@@ -27,9 +34,10 @@ pub const LoxFunction = struct {
         allocator: std.mem.Allocator,
         declaration: Stmt.Function,
         closure: *Environment,
+        is_initializer: bool,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(declaration, closure);
+        ptr.* = Self.init(declaration, closure, is_initializer);
         return ptr;
     }
 
@@ -42,7 +50,21 @@ pub const LoxFunction = struct {
         };
     }
 
-    fn call(
+    pub fn bind(self: Self, instance: *LoxInstance) *Self {
+        // Same as with call() we'll hijack LoxInstance's allocator
+        var environment = instance.allocator.create(Environment) catch unreachable;
+        environment.* = Environment.init(instance.allocator);
+        environment.enclosing = self.closure;
+        environment.define("this", Object.initInstance(instance));
+        return Self.create(
+            instance.allocator,
+            self.declaration,
+            environment,
+            self.is_initializer,
+        );
+    }
+
+    pub fn call(
         ptr: *const anyopaque,
         interpreter: *Interpreter,
         arguments: std.ArrayList(Object),
@@ -65,10 +87,15 @@ pub const LoxFunction = struct {
         // interpreter.ret otherwise bubble up whatever error it was.
         interpreter.executeBlock(self.declaration.body, environment) catch |err| {
             switch (err) {
-                error.ReturnValue => return interpreter.ret orelse return err,
+                error.ReturnValue => {
+                    if (self.is_initializer)
+                        return self.closure.getAt(0, "this");
+                    return interpreter.ret orelse return err;
+                },
                 else => return err,
             }
         };
+        if (self.is_initializer) return self.closure.getAt(0, "this");
         return Object.initNil();
     }
 

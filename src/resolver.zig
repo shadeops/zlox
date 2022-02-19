@@ -15,7 +15,16 @@ fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
 const FunctionType = enum {
     NONE,
     FUNCTION,
+    INITIALIZER,
+    METHOD,
 };
+
+const ClassType = enum {
+    NONE,
+    CLASS,
+};
+
+var currentClass = ClassType.NONE;
 
 pub const Resolver = struct {
     const Self = @This();
@@ -95,8 +104,8 @@ pub const Resolver = struct {
     }
 
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        try self.resolveExpr(expr.object);
     }
 
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
@@ -116,8 +125,9 @@ pub const Resolver = struct {
     }
 
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        try self.resolveExpr(expr.value);
+        try self.resolveExpr(expr.object);
     }
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
@@ -126,8 +136,12 @@ pub const Resolver = struct {
     }
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        if (currentClass == .NONE) {
+            try tokenError(expr.keyword, "Can't use 'this' outside of class.");
+            return;
+        }
+        try self.resolveLocal(expr.toExpr(), expr.keyword);
     }
 
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
@@ -156,8 +170,24 @@ pub const Resolver = struct {
 
     fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
         const self = castToSelf(Self, ptr);
-        _ = self;
-        _ = stmt;
+
+        var enclosingClass = currentClass;
+        defer currentClass = enclosingClass;
+        currentClass = .CLASS;
+
+        try self.declare(stmt.name);
+        try self.define(stmt.name);
+
+        self.beginScope();
+        try self.peek().put("this", true);
+        for (stmt.methods.items) |method| {
+            var declaration = FunctionType.METHOD;
+            if (std.mem.eql(u8, method.name.lexeme, "init")) {
+                declaration = .INITIALIZER;
+            }
+            try self.resolveFunction(method, declaration);
+        }
+        self.endScope();
     }
 
     fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
@@ -191,8 +221,12 @@ pub const Resolver = struct {
             try tokenError(stmt.keyword, "Can't return from top-level code.");
         }
 
-        if (stmt.value != null)
+        if (stmt.value != null) {
+            if (self.current_function == .INITIALIZER) {
+                try tokenError(stmt.keyword, "Can't return a value from an initializer.");
+            }
             try self.resolveExpr(stmt.value.?);
+        }
     }
 
     fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {

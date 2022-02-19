@@ -1,6 +1,7 @@
 const std = @import("std");
 const Token = @import("token.zig").Token;
 const LoxFunction = @import("function.zig").LoxFunction;
+const LoxClass = @import("class.zig").LoxClass;
 const LoxCallable = @import("callable.zig").LoxCallable;
 const Environment = @import("environment.zig").Environment;
 const Object = @import("object.zig").Object;
@@ -233,8 +234,14 @@ pub const Interpreter = struct {
     }
 
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        var object = try self.evaluate(expr.object);
+        if (object == .instance) {
+            self.ret = try object.instance.get(expr.name);
+            return;
+        }
+        std.log.err("Only instances have properties, {}", .{expr.name});
+        return error.RuntimeError;
     }
 
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
@@ -267,8 +274,16 @@ pub const Interpreter = struct {
     }
 
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+
+        var object = try self.evaluate(expr.object);
+        if (object != .instance) {
+            std.log.err("Only instances have fields, {s}", .{expr.name});
+            return error.RuntimeError;
+        }
+        var value = try self.evaluate(expr.value);
+        try object.instance.set(expr.name, value);
+        self.ret = value;
     }
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
@@ -277,8 +292,8 @@ pub const Interpreter = struct {
     }
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        self.ret = try self.lookUpVariable(expr.keyword, expr.toExpr());
     }
 
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
@@ -371,8 +386,25 @@ pub const Interpreter = struct {
     }
 
     fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
-        _ = ptr;
-        _ = stmt;
+        const self = castToSelf(Self, ptr);
+        self.ret = null;
+
+        self.environment.define(stmt.name.lexeme, Object.initNil());
+        var methods = std.StringHashMap(*LoxFunction).init(self.allocator);
+        for (stmt.methods.items) |method| {
+            var function = LoxFunction.create(
+                self.allocator,
+                method.*,
+                self.environment,
+                std.mem.eql(u8, method.name.lexeme, "init"),
+            );
+            try methods.put(method.name.lexeme, function);
+        }
+        var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
+        callable_ptr.* = LoxClass.create(self.allocator, stmt.name.lexeme, methods).toCallable();
+        var callable = Object.initCallable(callable_ptr);
+
+        try self.environment.assign(stmt.name, callable);
     }
 
     fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
@@ -385,7 +417,12 @@ pub const Interpreter = struct {
         const self = castToSelf(Self, ptr);
         self.ret = null;
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
-        callable_ptr.* = LoxFunction.create(self.allocator, stmt.*, self.environment).toCallable();
+        callable_ptr.* = LoxFunction.create(
+            self.allocator,
+            stmt.*,
+            self.environment,
+            false,
+        ).toCallable();
         var function = Object.initCallable(callable_ptr);
         self.environment.define(stmt.name.lexeme, function);
     }

@@ -48,6 +48,9 @@ pub const Parser = struct {
     }
 
     fn declaration(self: *Self) ParseError!?Stmt.Stmt {
+        if (self.match(&.{.CLASS})) {
+            return try self.classDeclaration();
+        }
         if (self.match(&.{.FUN})) {
             return try self.function("function");
         }
@@ -58,6 +61,21 @@ pub const Parser = struct {
             };
         }
         return try self.statement();
+    }
+
+    fn classDeclaration(self: *Self) ParseError!Stmt.Stmt {
+        var name = try self.consume(.IDENTIFIER, "Expect class name.");
+        _ = try self.consume(.LEFT_BRACE, "Expect '{' before class body.");
+
+        var methods = std.ArrayList(*const Stmt.Function).init(self.allocator);
+        while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
+            var func_stmt = try self.function("method");
+            const alignment = @alignOf(Stmt.Function);
+            var func = @ptrCast(*const Stmt.Function, @alignCast(alignment, func_stmt.impl));
+            try methods.append(func);
+        }
+        _ = try self.consume(.RIGHT_BRACE, "Expect '}' after class body.");
+        return Stmt.Class.create(self.allocator, name, methods).toStmt();
     }
 
     fn statement(self: *Self) ParseError!Stmt.Stmt {
@@ -220,6 +238,10 @@ pub const Parser = struct {
                 var variable_expr = @ptrCast(*const Expr.Variable, @alignCast(alignment, expr.impl));
                 var name = variable_expr.name;
                 return Expr.Assign.create(self.allocator, name, value).toExpr();
+            } else if (expr.expr_type == .GET) {
+                const alignment = @alignOf(Expr.Get);
+                var get = @ptrCast(*const Expr.Get, @alignCast(alignment, expr.impl));
+                return Expr.Set.create(self.allocator, get.object, get.name, value).toExpr();
             }
 
             try reportError(equals, "Invalid assignment target.");
@@ -332,6 +354,9 @@ pub const Parser = struct {
         while (true) {
             if (self.match(&.{.LEFT_PAREN})) {
                 expr = try self.finishCall(expr);
+            } else if (self.match(&.{.DOT})) {
+                var name = try self.consume(.IDENTIFIER, "Expect property name after '.'.");
+                expr = Expr.Get.create(self.allocator, expr, name).toExpr();
             } else {
                 break;
             }
@@ -347,13 +372,12 @@ pub const Parser = struct {
             return Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
         if (self.match(&.{.NIL}))
             return Expr.Literal.create(self.allocator, Object.initNil()).toExpr();
-
         if (self.match(&.{ .NUMBER, .STRING }))
             return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
-
+        if (self.match(&.{.THIS}))
+            return Expr.This.create(self.allocator, self.previous()).toExpr();
         if (self.match(&.{.IDENTIFIER}))
             return Expr.Variable.create(self.allocator, self.previous()).toExpr();
-
         if (self.match(&.{.LEFT_PAREN})) {
             var expr = try self.expression();
             _ = try self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
