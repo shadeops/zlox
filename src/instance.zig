@@ -1,6 +1,7 @@
 const std = @import("std");
 const Object = @import("object.zig").Object;
 const LoxClass = @import("class.zig").LoxClass;
+const LoxCallable = @import("callable.zig").LoxCallable;
 const Token = @import("token.zig").Token;
 
 pub const LoxInstance = struct {
@@ -47,8 +48,9 @@ pub const LoxInstance = struct {
 
         // findMethod gives us a *LoxFunction, but we need to return a
         // Object annoyingly.
-        // TODO local scope issue?
-        return Object.initCallable(&(method.bind(self).toCallable()));
+        var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
+        callable_ptr.* = method.bind(self).toCallable();
+        return Object.initCallable(callable_ptr);
     }
 
     pub fn toString(self: Self) []const u8 {

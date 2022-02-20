@@ -223,7 +223,6 @@ pub const Interpreter = struct {
         }
 
         var function = callee.callable;
-
         if (arguments.items.len != function.arity) {
             std.log.err(
                 "Expected {} arguments but got {}.",
@@ -314,7 +313,9 @@ pub const Interpreter = struct {
             std.log.err("Undefined property '{s}'.", .{expr.method.lexeme});
             return error.RunTimeError;
         }
-        self.ret = Object.initCallable(&method.?.bind(instance).toCallable());
+        var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
+        callable_ptr.* = method.?.bind(instance).toCallable();
+        self.ret = Object.initCallable(callable_ptr);
     }
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
@@ -438,8 +439,9 @@ pub const Interpreter = struct {
             new_environment.enclosing = self.environment;
             self.environment = new_environment;
 
-            // Scope?
-            self.environment.define("super", Object.initCallable(&superclass.?.toCallable()));
+            var super_callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
+            super_callable_ptr.* = superclass.?.toCallable();
+            self.environment.define("super", Object.initCallable(super_callable_ptr));
         }
 
         var methods = std.StringHashMap(*LoxFunction).init(self.allocator);
