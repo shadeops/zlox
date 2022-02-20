@@ -21,14 +21,17 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 pub const LoxClass = struct {
     const Self = @This();
     name: []const u8,
+    superclass: ?*const LoxClass,
     methods: std.StringHashMap(*LoxFunction),
 
     pub fn init(
         name: []const u8,
+        superclass: ?*const LoxClass,
         methods: std.StringHashMap(*LoxFunction),
     ) LoxClass {
         return .{
             .name = name,
+            .superclass = superclass,
             .methods = methods,
         };
     }
@@ -36,14 +39,15 @@ pub const LoxClass = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         name: []const u8,
+        superclass: ?*const LoxClass,
         methods: std.StringHashMap(*LoxFunction),
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(name, methods);
+        ptr.* = Self.init(name, superclass, methods);
         return ptr;
     }
 
-    pub fn toCallable(self: *Self) LoxCallable {
+    pub fn toCallable(self: *const Self) LoxCallable {
         // We diverge slightly from jlox, where arity is method,
         // here we have it as a field so move the evaluation here.
         var initializer = self.findMethod("init");
@@ -56,13 +60,22 @@ pub const LoxClass = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .arity = arity,
+            .callable_type = .CLASS,
             .callFn = call,
             .toStringFn = toString,
         };
     }
 
     pub fn findMethod(self: Self, name: []const u8) ?*LoxFunction {
-        return self.methods.get(name);
+        if (self.methods.contains(name)) {
+            return self.methods.get(name);
+        }
+
+        if (self.superclass != null) {
+            return self.superclass.?.findMethod(name);
+        }
+
+        return null;
     }
 
     fn call(

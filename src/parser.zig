@@ -65,6 +65,13 @@ pub const Parser = struct {
 
     fn classDeclaration(self: *Self) ParseError!Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect class name.");
+
+        var superclass: ?*Expr.Variable = null;
+        if (self.match(&.{.LESS})) {
+            _ = try self.consume(.IDENTIFIER, "Expect superclass name.");
+            superclass = Expr.Variable.create(self.allocator, self.previous());
+        }
+
         _ = try self.consume(.LEFT_BRACE, "Expect '{' before class body.");
 
         var methods = std.ArrayList(*const Stmt.Function).init(self.allocator);
@@ -75,7 +82,7 @@ pub const Parser = struct {
             try methods.append(func);
         }
         _ = try self.consume(.RIGHT_BRACE, "Expect '}' after class body.");
-        return Stmt.Class.create(self.allocator, name, methods).toStmt();
+        return Stmt.Class.create(self.allocator, name, superclass, methods).toStmt();
     }
 
     fn statement(self: *Self) ParseError!Stmt.Stmt {
@@ -374,6 +381,12 @@ pub const Parser = struct {
             return Expr.Literal.create(self.allocator, Object.initNil()).toExpr();
         if (self.match(&.{ .NUMBER, .STRING }))
             return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
+        if (self.match(&.{.SUPER})) {
+            var keyword = self.previous();
+            _ = try self.consume(.DOT, "Expect '.' after 'super'.");
+            var method = try self.consume(.IDENTIFIER, "Expect superclass method name.");
+            return Expr.Super.create(self.allocator, keyword, method).toExpr();
+        }
         if (self.match(&.{.THIS}))
             return Expr.This.create(self.allocator, self.previous()).toExpr();
         if (self.match(&.{.IDENTIFIER}))

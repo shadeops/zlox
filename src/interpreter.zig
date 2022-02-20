@@ -3,6 +3,7 @@ const Token = @import("token.zig").Token;
 const LoxFunction = @import("function.zig").LoxFunction;
 const LoxClass = @import("class.zig").LoxClass;
 const LoxCallable = @import("callable.zig").LoxCallable;
+const LoxInstance = @import("instance.zig").LoxInstance;
 const Environment = @import("environment.zig").Environment;
 const Object = @import("object.zig").Object;
 const Expr = @import("expr.zig");
@@ -34,6 +35,7 @@ const ClockCall = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .arity = self.arity,
+            .callable_type = .FUNCTION,
             .callFn = call,
             .toStringFn = toString,
         };
@@ -287,8 +289,32 @@ pub const Interpreter = struct {
     }
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        var distance = self.locals.get(expr.toExpr()) orelse {
+            std.log.err("Could not evaluate distance\n", .{});
+            unreachable;
+        };
+        var superclass_obj = try self.environment.getAt(distance, "super");
+
+        const class_alignment = @alignOf(LoxClass);
+        var superclass = @ptrCast(*const LoxClass, @alignCast(
+            class_alignment,
+            superclass_obj.callable.impl,
+        ));
+
+        var object = try self.environment.getAt(distance - 1, "this");
+        const instance_alignment = @alignOf(LoxInstance);
+        var instance = @ptrCast(*LoxInstance, @alignCast(
+            instance_alignment,
+            object.instance,
+        ));
+
+        var method = superclass.findMethod(expr.method.lexeme);
+        if (method == null) {
+            std.log.err("Undefined property '{s}'.", .{expr.method.lexeme});
+            return error.RunTimeError;
+        }
+        self.ret = Object.initCallable(&method.?.bind(instance).toCallable());
     }
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
@@ -389,7 +415,33 @@ pub const Interpreter = struct {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
+        var superclass: ?*const LoxClass = null;
+        if (stmt.superclass != null) {
+            var superclass_obj = try self.evaluate(stmt.superclass.?.toExpr());
+            if (superclass_obj != .callable or superclass_obj.callable.callable_type != .CLASS) {
+                std.log.err("Superclass must be a class, {s}", .{stmt.superclass.?.name});
+                return error.RuntimeError;
+            } else {
+                const alignment = @alignOf(LoxClass);
+                superclass = @ptrCast(*const LoxClass, @alignCast(
+                    alignment,
+                    superclass_obj.callable.impl,
+                ));
+            }
+        }
+
         self.environment.define(stmt.name.lexeme, Object.initNil());
+
+        if (stmt.superclass != null) {
+            var new_environment = try self.allocator.create(Environment);
+            new_environment.* = Environment.init(self.allocator);
+            new_environment.enclosing = self.environment;
+            self.environment = new_environment;
+
+            // Scope?
+            self.environment.define("super", Object.initCallable(&superclass.?.toCallable()));
+        }
+
         var methods = std.StringHashMap(*LoxFunction).init(self.allocator);
         for (stmt.methods.items) |method| {
             var function = LoxFunction.create(
@@ -400,9 +452,19 @@ pub const Interpreter = struct {
             );
             try methods.put(method.name.lexeme, function);
         }
+
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
-        callable_ptr.* = LoxClass.create(self.allocator, stmt.name.lexeme, methods).toCallable();
+        callable_ptr.* = LoxClass.create(
+            self.allocator,
+            stmt.name.lexeme,
+            superclass,
+            methods,
+        ).toCallable();
         var callable = Object.initCallable(callable_ptr);
+
+        if (superclass != null) {
+            self.environment = self.environment.enclosing.?;
+        }
 
         try self.environment.assign(stmt.name, callable);
     }

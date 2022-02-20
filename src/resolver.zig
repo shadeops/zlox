@@ -22,6 +22,7 @@ const FunctionType = enum {
 const ClassType = enum {
     NONE,
     CLASS,
+    SUBCLASS,
 };
 
 var currentClass = ClassType.NONE;
@@ -131,8 +132,13 @@ pub const Resolver = struct {
     }
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
-        _ = ptr;
-        _ = expr;
+        const self = castToSelf(Self, ptr);
+        if (currentClass == .NONE) {
+            try tokenError(expr.keyword, "Can't use 'super' outside of class.");
+        } else if (currentClass != .SUBCLASS) {
+            try tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
+        }
+        try self.resolveLocal(expr.toExpr(), expr.keyword);
     }
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
@@ -172,11 +178,26 @@ pub const Resolver = struct {
         const self = castToSelf(Self, ptr);
 
         var enclosingClass = currentClass;
-        defer currentClass = enclosingClass;
         currentClass = .CLASS;
 
         try self.declare(stmt.name);
         try self.define(stmt.name);
+
+        if (stmt.superclass != null and
+            std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.name.lexeme))
+        {
+            try tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
+        }
+
+        if (stmt.superclass != null) {
+            currentClass = .SUBCLASS;
+            try self.resolveExpr(stmt.superclass.?.toExpr());
+        }
+
+        if (stmt.superclass != null) {
+            self.beginScope();
+            try self.peek().put("super", true);
+        }
 
         self.beginScope();
         try self.peek().put("this", true);
@@ -188,6 +209,12 @@ pub const Resolver = struct {
             try self.resolveFunction(method, declaration);
         }
         self.endScope();
+
+        if (stmt.superclass != null) {
+            self.endScope();
+        }
+
+        currentClass = enclosingClass;
     }
 
     fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {

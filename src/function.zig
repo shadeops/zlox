@@ -45,6 +45,7 @@ pub const LoxFunction = struct {
         return .{
             .impl = @ptrCast(*const anyopaque, self),
             .arity = @intCast(u8, self.declaration.params.items.len),
+            .callable_type = .FUNCTION,
             .callFn = call,
             .toStringFn = toString,
         };

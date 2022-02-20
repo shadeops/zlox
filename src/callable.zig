@@ -2,9 +2,18 @@ const std = @import("std");
 const Object = @import("object.zig").Object;
 const Interpreter = @import("interpreter.zig").Interpreter;
 
+/// NOTE:
+///     This is needed due to an "instanceof" check in Interpreter.visitClassStmt
+//      TODO: This could probably be replaced with a tagged union.
+pub const CallableType = enum {
+    FUNCTION,
+    CLASS,
+};
+
 pub const LoxCallable = struct {
     impl: *const anyopaque,
     arity: u8,
+    callable_type: CallableType,
 
     callFn: fn (*const anyopaque, *Interpreter, std.ArrayList(Object)) anyerror!Object,
     toStringFn: fn (*const anyopaque) []const u8,
