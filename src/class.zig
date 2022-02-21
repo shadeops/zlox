@@ -1,16 +1,10 @@
 const std = @import("std");
+
 const Object = @import("object.zig").Object;
 const LoxCallable = @import("callable.zig").LoxCallable;
 const LoxFunction = @import("function.zig").LoxFunction;
 const LoxInstance = @import("instance.zig").LoxInstance;
 const Interpreter = @import("interpreter.zig").Interpreter;
-const Environment = @import("environment.zig").Environment;
-//const Token = @import("token.zig").Token;
-//const Expr = @import("expr.zig");
-//const Stmt = @import("stmt.zig");
-//const Interpreter = @import("interpreter.zig").Interpreter;
-//
-//const tokenError = @import("main.zig").tokenError;
 
 fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
     const alignment = @alignOf(T);

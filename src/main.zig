@@ -1,12 +1,11 @@
 const std = @import("std");
-const scanner = @import("scanner.zig");
-const ast_printer = @import("ast_printer.zig");
 
-const Interpreter = @import("interpreter.zig").Interpreter;
+const Scanner = @import("scanner.zig").Scanner;
+const Token = @import("token.zig").Token;
 const Parser = @import("parser.zig").Parser;
 const ParseError = @import("parser.zig").ParseError;
 const Resolver = @import("resolver.zig").Resolver;
-const Token = @import("token.zig").Token;
+const Interpreter = @import("interpreter.zig").Interpreter;
 
 //pub const log_level: std.log.Level = .debug;
 pub const log_level: std.log.Level = .info;
@@ -115,7 +114,7 @@ fn runPrompt(allocator: std.mem.Allocator) void {
 ///     reentered when using the REPL (runPrompt)
 fn run(allocator: std.mem.Allocator, source: []const u8) void {
     std.log.debug("Starting scanner", .{});
-    var token_scanner = scanner.Scanner.init(allocator, source);
+    var token_scanner = Scanner.init(allocator, source);
     var tokens = token_scanner.scanTokens();
 
     std.log.debug("Starting parser", .{});
@@ -168,7 +167,7 @@ fn report(line: u32, where: []const u8, message: []const u8) void {
 }
 
 // In jlox this is error(Token, String);
-pub fn tokenError(token: Token, message: []const u8) !void {
+pub fn tokenError(token: Token, message: []const u8) void {
     if (token.token_type == .EOF) {
         report(token.line, " at end", message);
     } else {
@@ -176,7 +175,10 @@ pub fn tokenError(token: Token, message: []const u8) !void {
         var buf: [1024]u8 = undefined;
         report(
             token.line,
-            try std.fmt.bufPrint(buf[0..], " at '{s}'", .{token.lexeme}),
+            std.fmt.bufPrint(buf[0..], " at '{s}'", .{token.lexeme}) catch {
+                std.log.err("Failed to print to buffer.", .{});
+                return;
+            },
             message,
         );
     }

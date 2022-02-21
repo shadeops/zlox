@@ -202,10 +202,17 @@ pub const Parser = struct {
     }
 
     fn function(self: *Self, kind: []const u8) ParseError!Stmt.Stmt {
-        // TODO allocate string :\
-        _ = kind;
-        var name = try self.consume(.IDENTIFIER, "Expect <kind> name.");
-        _ = try self.consume(.LEFT_PAREN, "Expect '(' after <kind> name.");
+
+        // limit function name to 128 chars to avoid allocation
+        var buf: [256]u8 = undefined;
+        var kind_len = @minimum(kind.len, 128);
+
+        _ = std.fmt.bufPrint(buf[0..], "Expect {s} name.", .{kind[0..kind_len]}) catch {};
+        var name = try self.consume(.IDENTIFIER, buf[0..]);
+
+        _ = std.fmt.bufPrint(buf[0..], "Expect '(' after {s} name.", .{kind[0..kind_len]}) catch {};
+        _ = try self.consume(.LEFT_PAREN, buf[0..]);
+
         var parameters = std.ArrayList(Token).init(self.allocator);
         if (!self.check(.RIGHT_PAREN)) {
             try parameters.append(try self.consume(.IDENTIFIER, "Expect parameter name."));
@@ -217,7 +224,13 @@ pub const Parser = struct {
             }
         }
         _ = try self.consume(.RIGHT_PAREN, "Expect ')' after parameters");
-        _ = try self.consume(.LEFT_BRACE, "Expect '{' before <kind> body.");
+
+        _ = std.fmt.bufPrint(
+            buf[0..],
+            "Expect '{{' before {s} body.",
+            .{kind[0..kind_len]},
+        ) catch {};
+        _ = try self.consume(.LEFT_BRACE, buf[0..]);
         var body = try self.block();
         return Stmt.Function.create(self.allocator, name, parameters, body).toStmt();
     }
@@ -441,9 +454,7 @@ pub const Parser = struct {
     }
 
     fn reportError(token: Token, message: []const u8) ParseError!void {
-        Lox.tokenError(token, message) catch {
-            // could not print
-        };
+        Lox.tokenError(token, message);
         return ParseError.Expression;
     }
 

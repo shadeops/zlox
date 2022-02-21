@@ -141,9 +141,9 @@ pub const Resolver = struct {
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            try Lox.tokenError(expr.keyword, "Can't use 'super' outside of class.");
+            Lox.tokenError(expr.keyword, "Can't use 'super' outside of class.");
         } else if (current_class != .SUBCLASS) {
-            try Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
+            Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);
     }
@@ -151,7 +151,7 @@ pub const Resolver = struct {
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            try Lox.tokenError(expr.keyword, "Can't use 'this' outside of class.");
+            Lox.tokenError(expr.keyword, "Can't use 'this' outside of class.");
             return;
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);
@@ -169,7 +169,7 @@ pub const Resolver = struct {
             self.scopePeek().get(expr.name.lexeme) != null and
             self.scopePeek().get(expr.name.lexeme).? == false)
         {
-            try Lox.tokenError(expr.name, "Can't read local variable in its own initializer.");
+            Lox.tokenError(expr.name, "Can't read local variable in its own initializer.");
         }
         try self.resolveLocal(expr.toExpr(), expr.name);
     }
@@ -193,7 +193,7 @@ pub const Resolver = struct {
         if (stmt.superclass != null and
             std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.name.lexeme))
         {
-            try Lox.tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
+            Lox.tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
         }
 
         if (stmt.superclass != null) {
@@ -252,12 +252,12 @@ pub const Resolver = struct {
     fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (self.current_function == .NONE) {
-            try Lox.tokenError(stmt.keyword, "Can't return from top-level code.");
+            Lox.tokenError(stmt.keyword, "Can't return from top-level code.");
         }
 
         if (stmt.value != null) {
             if (self.current_function == .INITIALIZER) {
-                try Lox.tokenError(stmt.keyword, "Can't return a value from an initializer.");
+                Lox.tokenError(stmt.keyword, "Can't return a value from an initializer.");
             }
             try self.resolveExpr(stmt.value.?);
         }
@@ -324,7 +324,7 @@ pub const Resolver = struct {
         if (self.scopeIsEmpty()) return;
         var scope = self.scopePeek();
         if (scope.contains(name.lexeme)) {
-            try Lox.tokenError(name, "Already a varaible with this name in this scope.");
+            Lox.tokenError(name, "Already a variable with this name in this scope.");
         }
         try scope.put(name.lexeme, false);
     }
