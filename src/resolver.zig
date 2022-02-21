@@ -1,10 +1,11 @@
 const std = @import("std");
-const Token = @import("token.zig").Token;
-const Expr = @import("expr.zig");
-const Stmt = @import("stmt.zig");
-const Interpreter = @import("interpreter.zig").Interpreter;
 
 const Lox = @import("main.zig");
+const Expr = @import("expr.zig");
+const Stmt = @import("stmt.zig");
+
+const Interpreter = @import("interpreter.zig").Interpreter;
+const Token = @import("token.zig").Token;
 
 fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     const alignment = @alignOf(T);
@@ -25,7 +26,7 @@ const ClassType = enum {
     SUBCLASS,
 };
 
-var currentClass = ClassType.NONE;
+var current_class = ClassType.NONE;
 
 pub const Resolver = struct {
     const Self = @This();
@@ -50,7 +51,13 @@ pub const Resolver = struct {
         if (self.scopes.items.len != 0) unreachable;
     }
 
-    pub fn exprInterface(self: *Self) Expr.VisitorInterface {
+    pub fn resolveStmts(self: *Self, statements: std.ArrayList(Stmt.Stmt)) !void {
+        for (statements.items) |statement| {
+            try self.resolveStmt(statement);
+        }
+    }
+
+    fn exprInterface(self: *Self) Expr.VisitorInterface {
         return .{
             .impl = @ptrCast(*anyopaque, self),
             .visitAssignExprFn = visitAssignExpr,
@@ -68,7 +75,7 @@ pub const Resolver = struct {
         };
     }
 
-    pub fn stmtInterface(self: *Self) Stmt.VisitorInterface {
+    fn stmtInterface(self: *Self) Stmt.VisitorInterface {
         return .{
             .impl = @ptrCast(*anyopaque, self),
             .visitBlockStmtFn = visitBlockStmt,
@@ -133,9 +140,9 @@ pub const Resolver = struct {
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         const self = castToSelf(Self, ptr);
-        if (currentClass == .NONE) {
+        if (current_class == .NONE) {
             try Lox.tokenError(expr.keyword, "Can't use 'super' outside of class.");
-        } else if (currentClass != .SUBCLASS) {
+        } else if (current_class != .SUBCLASS) {
             try Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);
@@ -143,7 +150,7 @@ pub const Resolver = struct {
 
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         const self = castToSelf(Self, ptr);
-        if (currentClass == .NONE) {
+        if (current_class == .NONE) {
             try Lox.tokenError(expr.keyword, "Can't use 'this' outside of class.");
             return;
         }
@@ -158,9 +165,9 @@ pub const Resolver = struct {
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        if (!self.isEmpty() and
-            self.peek().get(expr.name.lexeme) != null and
-            self.peek().get(expr.name.lexeme).? == false)
+        if (!self.scopeIsEmpty() and
+            self.scopePeek().get(expr.name.lexeme) != null and
+            self.scopePeek().get(expr.name.lexeme).? == false)
         {
             try Lox.tokenError(expr.name, "Can't read local variable in its own initializer.");
         }
@@ -177,8 +184,8 @@ pub const Resolver = struct {
     fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        var enclosingClass = currentClass;
-        currentClass = .CLASS;
+        var enclosing_class = current_class;
+        current_class = .CLASS;
 
         try self.declare(stmt.name);
         try self.define(stmt.name);
@@ -190,17 +197,17 @@ pub const Resolver = struct {
         }
 
         if (stmt.superclass != null) {
-            currentClass = .SUBCLASS;
+            current_class = .SUBCLASS;
             try self.resolveExpr(stmt.superclass.?.toExpr());
         }
 
         if (stmt.superclass != null) {
             self.beginScope();
-            try self.peek().put("super", true);
+            try self.scopePeek().put("super", true);
         }
 
         self.beginScope();
-        try self.peek().put("this", true);
+        try self.scopePeek().put("this", true);
         for (stmt.methods.items) |method| {
             var declaration = FunctionType.METHOD;
             if (std.mem.eql(u8, method.name.lexeme, "init")) {
@@ -214,7 +221,7 @@ pub const Resolver = struct {
             self.endScope();
         }
 
-        currentClass = enclosingClass;
+        current_class = enclosing_class;
     }
 
     fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
@@ -272,12 +279,6 @@ pub const Resolver = struct {
 
     // TODO create a single resolve figures out which of the 3 to call
     // via comptime expression
-    pub fn resolveStmts(self: *Self, statements: std.ArrayList(Stmt.Stmt)) !void {
-        for (statements.items) |statement| {
-            try self.resolveStmt(statement);
-        }
-    }
-
     fn resolveStmt(self: *Self, statement: Stmt.Stmt) !void {
         var iface = self.stmtInterface();
         try statement.accept(&iface);
@@ -320,8 +321,8 @@ pub const Resolver = struct {
     }
 
     fn declare(self: *Self, name: Token) !void {
-        if (self.isEmpty()) return;
-        var scope = self.peek();
+        if (self.scopeIsEmpty()) return;
+        var scope = self.scopePeek();
         if (scope.contains(name.lexeme)) {
             try Lox.tokenError(name, "Already a varaible with this name in this scope.");
         }
@@ -329,8 +330,8 @@ pub const Resolver = struct {
     }
 
     fn define(self: *Self, name: Token) !void {
-        if (self.isEmpty()) return;
-        var scope = self.peek();
+        if (self.scopeIsEmpty()) return;
+        var scope = self.scopePeek();
         try scope.put(name.lexeme, true);
     }
 
@@ -344,11 +345,11 @@ pub const Resolver = struct {
         }
     }
 
-    fn isEmpty(self: Self) bool {
+    fn scopeIsEmpty(self: Self) bool {
         return self.scopes.items.len == 0;
     }
 
-    fn peek(self: Self) *std.StringHashMap(bool) {
+    fn scopePeek(self: Self) *std.StringHashMap(bool) {
         return self.scopes.items[self.scopes.items.len - 1];
     }
 };

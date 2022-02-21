@@ -40,13 +40,13 @@ pub fn main() anyerror!void {
         std.log.err("Usage: zlox [script]", .{});
         std.process.exit(64);
     } else if (args.len == 2) {
-        try runFile(arena.allocator(), args[1]);
+        runFile(arena.allocator(), args[1]);
     } else {
-        try runPrompt(arena.allocator());
+        runPrompt(arena.allocator());
     }
 }
 
-fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
+fn runFile(allocator: std.mem.Allocator, path: []const u8) void {
     std.log.debug("Running {s}", .{path});
     var file = std.fs.cwd().openFile(path, .{}) catch |err| {
         std.log.err("Could not open {s}, error was {s}", .{ path, @errorName(err) });
@@ -64,7 +64,7 @@ fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
     };
     defer allocator.free(source);
 
-    try run(allocator, source);
+    run(allocator, source);
 
     if (had_error)
         std.process.exit(65);
@@ -74,7 +74,7 @@ fn runFile(allocator: std.mem.Allocator, path: []const u8) !void {
     return;
 }
 
-fn runPrompt(allocator: std.mem.Allocator) !void {
+fn runPrompt(allocator: std.mem.Allocator) void {
     _ = allocator;
     const stdout = std.io.getStdOut();
     const stdin = std.io.getStdIn();
@@ -85,7 +85,10 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
     //      we'll use the allocator.
     //var buffer: [1024]u8 = undefined;
     while (true) {
-        try stdout.writeAll("> ");
+        stdout.writeAll("> ") catch {
+            std.log.err("Unable to output to prompt.", .{});
+            return;
+        };
         const input = stdin.reader().readUntilDelimiterAlloc(allocator, '\n', buf_size) catch |err| {
             switch (err) {
                 error.StreamTooLong => {
@@ -93,11 +96,14 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
                     continue;
                 },
                 error.EndOfStream => return,
-                else => return err,
+                else => {
+                    std.log.err("Error reading input: '{s}'.", .{@errorName(err)});
+                    return;
+                },
             }
         };
         if (input.len == 0) break;
-        try run(allocator, input);
+        run(allocator, input);
         had_error = false;
         had_runtime_error = false;
     }
@@ -107,10 +113,9 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 /// NOTES:
 ///  * We can't deinit the scanner or tokens here as this function needs to be
 ///     reentered when using the REPL (runPrompt)
-fn run(allocator: std.mem.Allocator, source: []const u8) !void {
-    var token_scanner = scanner.Scanner.init(allocator, source);
-
+fn run(allocator: std.mem.Allocator, source: []const u8) void {
     std.log.debug("Starting scanner", .{});
+    var token_scanner = scanner.Scanner.init(allocator, source);
     var tokens = token_scanner.scanTokens();
 
     std.log.debug("Starting parser", .{});
@@ -123,7 +128,8 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
             },
             else => {
                 std.log.err("Unknown Parsing Error\n", .{});
-                return err;
+                // There shouldn't be another error type raised
+                unreachable;
             },
         }
         return;

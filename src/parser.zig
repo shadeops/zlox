@@ -1,13 +1,12 @@
 const std = @import("std");
 
+const Lox = @import("main.zig");
 const Expr = @import("expr.zig");
 const Stmt = @import("stmt.zig");
 
+const Object = @import("object.zig").Object;
 const Token = @import("token.zig").Token;
 const TokenType = @import("token_types.zig").TokenType;
-const Object = @import("object.zig").Object;
-
-const Lox = @import("main.zig");
 
 pub const ParseError = error{
     Paren,
