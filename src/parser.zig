@@ -7,9 +7,9 @@ const Token = @import("token.zig").Token;
 const TokenType = @import("token_types.zig").TokenType;
 const Object = @import("object.zig").Object;
 
-const tokenError = @import("main.zig").tokenError;
+const Lox = @import("main.zig");
 
-const ParseError = error{
+pub const ParseError = error{
     Paren,
     Expression,
     OutOfMemory,
@@ -242,7 +242,10 @@ pub const Parser = struct {
 
             if (expr.expr_type == .VARIABLE) {
                 const alignment = @alignOf(Expr.Variable);
-                var variable_expr = @ptrCast(*const Expr.Variable, @alignCast(alignment, expr.impl));
+                var variable_expr = @ptrCast(
+                    *const Expr.Variable,
+                    @alignCast(alignment, expr.impl),
+                );
                 var name = variable_expr.name;
                 return Expr.Assign.create(self.allocator, name, value).toExpr();
             } else if (expr.expr_type == .GET) {
@@ -439,10 +442,10 @@ pub const Parser = struct {
     }
 
     fn reportError(token: Token, message: []const u8) ParseError!void {
-        tokenError(token, message) catch {
+        Lox.tokenError(token, message) catch {
             // could not print
         };
-        return error.Expression;
+        return ParseError.Expression;
     }
 
     fn synchronize(self: *Self) void {
@@ -465,9 +468,24 @@ test "Parser.check" {
 
     var tokens = std.ArrayList(Token).init(a);
     defer tokens.deinit();
-    try tokens.append(.{ .token_type = .MINUS, .lexeme = "-", .literal = Object.initNil(), .line = 1 });
-    try tokens.append(.{ .token_type = .PLUS, .lexeme = "+", .literal = Object.initNil(), .line = 1 });
-    try tokens.append(.{ .token_type = .EOF, .lexeme = "", .literal = Object.initNil(), .line = 1 });
+    try tokens.append(.{
+        .token_type = .MINUS,
+        .lexeme = "-",
+        .literal = Object.initNil(),
+        .line = 1,
+    });
+    try tokens.append(.{
+        .token_type = .PLUS,
+        .lexeme = "+",
+        .literal = Object.initNil(),
+        .line = 1,
+    });
+    try tokens.append(.{
+        .token_type = .EOF,
+        .lexeme = "",
+        .literal = Object.initNil(),
+        .line = 1,
+    });
 
     var parser = Parser.init(a, tokens);
     try std.testing.expect(parser.check(.MINUS));

@@ -4,6 +4,7 @@ const ast_printer = @import("ast_printer.zig");
 
 const Interpreter = @import("interpreter.zig").Interpreter;
 const Parser = @import("parser.zig").Parser;
+const ParseError = @import("parser.zig").ParseError;
 const Resolver = @import("resolver.zig").Resolver;
 const Token = @import("token.zig").Token;
 
@@ -107,15 +108,24 @@ fn runPrompt(allocator: std.mem.Allocator) !void {
 ///  * We can't deinit the scanner or tokens here as this function needs to be
 ///     reentered when using the REPL (runPrompt)
 fn run(allocator: std.mem.Allocator, source: []const u8) !void {
-    var token_scanner = try scanner.Scanner.init(allocator, source);
+    var token_scanner = scanner.Scanner.init(allocator, source);
 
     std.log.debug("Starting scanner", .{});
-    var tokens = try token_scanner.scanTokens();
+    var tokens = token_scanner.scanTokens();
 
     std.log.debug("Starting parser", .{});
     var parser = Parser.init(allocator, tokens);
-    var statements = parser.parse() catch {
-        std.log.err("parsing error\n", .{});
+    var statements = parser.parse() catch |err| {
+        switch (err) {
+            ParseError.Paren, ParseError.Expression => {},
+            ParseError.OutOfMemory => {
+                std.log.err("Ran out of memory parsing", .{});
+            },
+            else => {
+                std.log.err("Unknown Parsing Error\n", .{});
+                return err;
+            },
+        }
         return;
     };
 
@@ -140,10 +150,18 @@ fn run(allocator: std.mem.Allocator, source: []const u8) !void {
 // out of sync with what jlox is doing partly because we can't
 // easily capture extra data as with Java when raising excepions.
 // Currently the approach isn't consistent.
+
+// In jlox this is error(int, String);
 pub fn lineError(line: u32, message: []const u8) void {
     report(line, "", message);
 }
 
+fn report(line: u32, where: []const u8, message: []const u8) void {
+    std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });
+    had_error = true;
+}
+
+// In jlox this is error(Token, String);
 pub fn tokenError(token: Token, message: []const u8) !void {
     if (token.token_type == .EOF) {
         report(token.line, " at end", message);
@@ -161,9 +179,4 @@ pub fn tokenError(token: Token, message: []const u8) !void {
 pub fn runtimeError(message: []const u8) void {
     std.log.err("{s}\n[line ?]", .{message});
     had_runtime_error = true;
-}
-
-pub fn report(line: u32, where: []const u8, message: []const u8) void {
-    std.log.err("[line {}] Error{s}: {s}", .{ line, where, message });
-    had_error = true;
 }

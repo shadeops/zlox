@@ -1,5 +1,5 @@
 const std = @import("std");
-const lineError = @import("main.zig").lineError;
+const Lox = @import("main.zig");
 
 const Object = @import("object.zig").Object;
 const Token = @import("token.zig").Token;
@@ -12,7 +12,7 @@ pub const Scanner = struct {
     current: u32,
     line: u32,
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8) !Scanner {
+    pub fn init(allocator: std.mem.Allocator, source: []const u8) Scanner {
         return Scanner{
             .source = source,
             .tokens = std.ArrayList(Token).init(allocator),
@@ -26,17 +26,20 @@ pub const Scanner = struct {
         self.tokens.deinit();
     }
 
-    pub fn scanTokens(self: *Scanner) !std.ArrayList(Token) {
+    pub fn scanTokens(self: *Scanner) std.ArrayList(Token) {
         while (!self.isAtEnd()) {
             self.start = self.current;
-            try self.scanToken();
+            self.scanToken();
         }
-        try self.tokens.append(.{
+        self.tokens.append(.{
             .token_type = .EOF,
             .lexeme = "",
             .literal = null,
             .line = self.line,
-        });
+        }) catch {
+            std.log.err("Unable to allocate memory for EOF token.", .{});
+            unreachable;
+        };
         return self.tokens;
     }
 
@@ -67,84 +70,90 @@ pub const Scanner = struct {
         return true;
     }
 
-    fn addToken(self: *Scanner, token_type: TokenType, literal: ?Object) !void {
-        try self.tokens.append(.{
+    fn addToken(self: *Scanner, token_type: TokenType, literal: ?Object) void {
+        self.tokens.append(.{
             .token_type = token_type,
             .lexeme = self.source[self.start..self.current],
             .literal = literal,
             .line = self.line,
-        });
+        }) catch {
+            std.log.err("Unable to allocate memory to append tokens.", .{});
+            unreachable;
+        };
         return;
     }
 
-    fn scanToken(self: *Scanner) !void {
+    fn scanToken(self: *Scanner) void {
         var c: u8 = self.advance();
         switch (c) {
-            '(' => try self.addToken(.LEFT_PAREN, null),
-            ')' => try self.addToken(.RIGHT_PAREN, null),
-            '{' => try self.addToken(.LEFT_BRACE, null),
-            '}' => try self.addToken(.RIGHT_BRACE, null),
-            ',' => try self.addToken(.COMMA, null),
-            '.' => try self.addToken(.DOT, null),
-            '-' => try self.addToken(.MINUS, null),
-            '+' => try self.addToken(.PLUS, null),
-            ';' => try self.addToken(.SEMICOLON, null),
-            '*' => try self.addToken(.STAR, null),
-            '!' => try self.addToken(if (self.match('=')) .BANG_EQUAL else .BANG, null),
-            '=' => try self.addToken(if (self.match('=')) .EQUAL_EQUAL else .EQUAL, null),
-            '<' => try self.addToken(if (self.match('=')) .LESS_EQUAL else .LESS, null),
-            '>' => try self.addToken(if (self.match('=')) .GREATER_EQUAL else .GREATER, null),
+            '(' => self.addToken(.LEFT_PAREN, null),
+            ')' => self.addToken(.RIGHT_PAREN, null),
+            '{' => self.addToken(.LEFT_BRACE, null),
+            '}' => self.addToken(.RIGHT_BRACE, null),
+            ',' => self.addToken(.COMMA, null),
+            '.' => self.addToken(.DOT, null),
+            '-' => self.addToken(.MINUS, null),
+            '+' => self.addToken(.PLUS, null),
+            ';' => self.addToken(.SEMICOLON, null),
+            '*' => self.addToken(.STAR, null),
+            '!' => self.addToken(if (self.match('=')) .BANG_EQUAL else .BANG, null),
+            '=' => self.addToken(if (self.match('=')) .EQUAL_EQUAL else .EQUAL, null),
+            '<' => self.addToken(if (self.match('=')) .LESS_EQUAL else .LESS, null),
+            '>' => self.addToken(if (self.match('=')) .GREATER_EQUAL else .GREATER, null),
             '/' => if (self.match('/')) {
                 while (self.peek() != '\n' and !self.isAtEnd()) _ = self.advance();
             } else {
-                try self.addToken(.SLASH, null);
+                self.addToken(.SLASH, null);
             },
             ' ', '\r', '\t' => {},
             '\n' => self.line += 1,
-            '"' => try self.string(),
+            '"' => self.string(),
             else => {
                 if (isDigit(c)) {
-                    try self.number();
+                    self.number();
                 } else if (isAlpha(c)) {
-                    try self.identifier();
+                    self.identifier();
                 } else {
-                    lineError(self.line, "Unexpected character.");
+                    Lox.lineError(self.line, "Unexpected character.");
                 }
             },
         }
         return;
     }
 
-    fn string(self: *Scanner) !void {
+    fn string(self: *Scanner) void {
         while (self.peek() != '"' and !self.isAtEnd()) {
             if (self.peek() == '\n') self.line += 1;
             _ = self.advance();
         }
         if (self.isAtEnd()) {
-            lineError(self.line, "Unterminated string.");
+            Lox.lineError(self.line, "Unterminated string.");
             return;
         }
         _ = self.advance();
         var literal = Object.initString(self.source[self.start + 1 .. self.current - 1]);
-        try self.addToken(.STRING, literal);
+        self.addToken(.STRING, literal);
         return;
     }
 
-    fn number(self: *Scanner) !void {
+    fn number(self: *Scanner) void {
         while (isDigit(self.peek())) _ = self.advance();
         if (self.peek() == '.' and isDigit(self.peekNext())) _ = self.advance();
         while (isDigit(self.peek())) _ = self.advance();
         var num: f64 = std.fmt.parseFloat(f64, self.source[self.start..self.current]) catch {
-            lineError(self.line, "Unable to parse float");
+            Lox.lineError(self.line, "Unable to parse float");
             return;
         };
-        try self.addToken(.NUMBER, Object.initNumber(num));
+        self.addToken(.NUMBER, Object.initNumber(num));
     }
 
-    fn identifier(self: *Scanner) !void {
+    fn identifier(self: *Scanner) void {
         while (isAlphaNumeric(self.peek())) _ = self.advance();
-        var identifier_token: TokenType = matchIdentifier(self.source[self.start..self.current]) orelse .IDENTIFIER;
-        try self.addToken(identifier_token, null);
+
+        var identifier_token: TokenType = matchIdentifier(
+            self.source[self.start..self.current],
+        ) orelse .IDENTIFIER;
+        self.addToken(identifier_token, null);
         return;
     }
 };

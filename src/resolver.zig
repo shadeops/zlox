@@ -4,7 +4,7 @@ const Expr = @import("expr.zig");
 const Stmt = @import("stmt.zig");
 const Interpreter = @import("interpreter.zig").Interpreter;
 
-const tokenError = @import("main.zig").tokenError;
+const Lox = @import("main.zig");
 
 fn castToSelf(comptime T: type, ptr: *anyopaque) *T {
     const alignment = @alignOf(T);
@@ -134,9 +134,9 @@ pub const Resolver = struct {
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (currentClass == .NONE) {
-            try tokenError(expr.keyword, "Can't use 'super' outside of class.");
+            try Lox.tokenError(expr.keyword, "Can't use 'super' outside of class.");
         } else if (currentClass != .SUBCLASS) {
-            try tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
+            try Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);
     }
@@ -144,7 +144,7 @@ pub const Resolver = struct {
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (currentClass == .NONE) {
-            try tokenError(expr.keyword, "Can't use 'this' outside of class.");
+            try Lox.tokenError(expr.keyword, "Can't use 'this' outside of class.");
             return;
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);
@@ -162,7 +162,7 @@ pub const Resolver = struct {
             self.peek().get(expr.name.lexeme) != null and
             self.peek().get(expr.name.lexeme).? == false)
         {
-            try tokenError(expr.name, "Can't read local variable in its own initializer.");
+            try Lox.tokenError(expr.name, "Can't read local variable in its own initializer.");
         }
         try self.resolveLocal(expr.toExpr(), expr.name);
     }
@@ -186,7 +186,7 @@ pub const Resolver = struct {
         if (stmt.superclass != null and
             std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.name.lexeme))
         {
-            try tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
+            try Lox.tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
         }
 
         if (stmt.superclass != null) {
@@ -245,12 +245,12 @@ pub const Resolver = struct {
     fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (self.current_function == .NONE) {
-            try tokenError(stmt.keyword, "Can't return from top-level code.");
+            try Lox.tokenError(stmt.keyword, "Can't return from top-level code.");
         }
 
         if (stmt.value != null) {
             if (self.current_function == .INITIALIZER) {
-                try tokenError(stmt.keyword, "Can't return a value from an initializer.");
+                try Lox.tokenError(stmt.keyword, "Can't return a value from an initializer.");
             }
             try self.resolveExpr(stmt.value.?);
         }
@@ -323,7 +323,7 @@ pub const Resolver = struct {
         if (self.isEmpty()) return;
         var scope = self.peek();
         if (scope.contains(name.lexeme)) {
-            try tokenError(name, "Already a varaible with this name in this scope.");
+            try Lox.tokenError(name, "Already a varaible with this name in this scope.");
         }
         try scope.put(name.lexeme, false);
     }
