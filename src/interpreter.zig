@@ -131,7 +131,7 @@ pub const Interpreter = struct {
     pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
         for (statements.items) |statement| {
             self.execute(statement) catch |err| {
-                runtimeError(@errorName(err));
+                std.log.debug("RuntimeError: {s}", .{@errorName(err)});
             };
         }
     }
@@ -188,8 +188,9 @@ pub const Interpreter = struct {
                     self.ret = Object.initString(new_str);
                     return;
                 }
-                std.log.err("Operand must be two numbers or two strings.", .{});
-                return error.OperandError;
+                std.log.err("Operands must be two numbers or two strings.", .{});
+                runtimeError(expr.operator);
+                return error.Operand;
             },
             .SLASH => {
                 try checkNumberOperands(expr.operator, left, right);
@@ -219,7 +220,8 @@ pub const Interpreter = struct {
 
         if (callee != .callable) {
             std.log.err("Can only call functions and classes.", .{});
-            return error.CallableError;
+            runtimeError(expr.paren);
+            return error.Callable;
         }
 
         var function = callee.callable;
@@ -228,7 +230,8 @@ pub const Interpreter = struct {
                 "Expected {} arguments but got {}.",
                 .{ function.arity, arguments.items.len },
             );
-            return error.CallableError;
+            runtimeError(expr.paren);
+            return error.Callable;
         }
 
         self.ret = try function.call(self, arguments);
@@ -241,8 +244,9 @@ pub const Interpreter = struct {
             self.ret = try object.instance.get(expr.name);
             return;
         }
-        std.log.err("Only instances have properties, {}", .{expr.name});
-        return error.RuntimeError;
+        std.log.err("Only instances have properties.", .{});
+        runtimeError(expr.name);
+        return error.Class;
     }
 
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
@@ -279,8 +283,9 @@ pub const Interpreter = struct {
 
         var object = try self.evaluate(expr.object);
         if (object != .instance) {
-            std.log.err("Only instances have fields, {s}", .{expr.name});
-            return error.RuntimeError;
+            std.log.err("Only instances have fields.", .{});
+            runtimeError(expr.name);
+            return error.Class;
         }
         var value = try self.evaluate(expr.value);
         try object.instance.set(expr.name, value);
@@ -311,7 +316,8 @@ pub const Interpreter = struct {
         var method = superclass.findMethod(expr.method.lexeme);
         if (method == null) {
             std.log.err("Undefined property '{s}'.", .{expr.method.lexeme});
-            return error.RunTimeError;
+            runtimeError(expr.method);
+            return error.Class;
         }
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
         callable_ptr.* = method.?.bind(instance).toCallable();
@@ -358,14 +364,16 @@ pub const Interpreter = struct {
         _ = operator;
         if (operand == .number) return;
         std.log.err("Operand must be a number.", .{});
-        return error.OperandError;
+        runtimeError(operator);
+        return error.Operand;
     }
 
     fn checkNumberOperands(operator: Token, left: Object, right: Object) !void {
         _ = operator;
         if (left == .number and right == .number) return;
-        std.log.err("Operands must be a number.", .{});
-        return error.OperandError;
+        std.log.err("Operands must be numbers.", .{});
+        runtimeError(operator);
+        return error.Operand;
     }
 
     fn evaluate(self: *Self, expr: Expr.Expr) !Object {
@@ -420,8 +428,9 @@ pub const Interpreter = struct {
         if (stmt.superclass != null) {
             var superclass_obj = try self.evaluate(stmt.superclass.?.toExpr());
             if (superclass_obj != .callable or superclass_obj.callable.callable_type != .CLASS) {
-                std.log.err("Superclass must be a class, {s}", .{stmt.superclass.?.name});
-                return error.RuntimeError;
+                std.log.err("Superclass must be a class.", .{});
+                runtimeError(stmt.superclass.?.name);
+                return error.Class;
             } else {
                 const alignment = @alignOf(LoxClass);
                 superclass = @ptrCast(*const LoxClass, @alignCast(

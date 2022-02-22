@@ -141,7 +141,7 @@ pub const Resolver = struct {
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            Lox.tokenError(expr.keyword, "Can't use 'super' outside of class.");
+            Lox.tokenError(expr.keyword, "Can't use 'super' outside of a class.");
         } else if (current_class != .SUBCLASS) {
             Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
         }
@@ -151,7 +151,7 @@ pub const Resolver = struct {
     fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            Lox.tokenError(expr.keyword, "Can't use 'this' outside of class.");
+            Lox.tokenError(expr.keyword, "Can't use 'this' outside of a class.");
             return;
         }
         try self.resolveLocal(expr.toExpr(), expr.keyword);

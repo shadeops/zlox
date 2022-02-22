@@ -184,7 +184,14 @@ pub fn tokenError(token: Token, message: []const u8) void {
     }
 }
 
-pub fn runtimeError(message: []const u8) void {
-    std.log.err("{s}\n[line ?]", .{message});
+// We diverge slightly from jlox, their runtime errors print a message
+// then on a separate new line supply the line number. We'll split this
+// in two. At the call site we'll issue a std.log.err, then call this
+// function to report the line number and set the had_runtime_error flag.
+// The main reason for doing this is to avoid having to do string process.
+
+// As a TODO it might be useful to wrap all this up into one function.
+pub fn runtimeError(token: Token) void {
+    std.log.err("[line {}]", .{token.line});
     had_runtime_error = true;
 }
