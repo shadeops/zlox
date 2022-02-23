@@ -52,8 +52,9 @@ const ClockCall = struct {
         return Object.initNumber(@intToFloat(f64, std.time.milliTimestamp()) / 1000.0);
     }
 
-    fn toString(ptr: *const anyopaque) []const u8 {
+    fn toString(ptr: *const anyopaque, allocator: std.mem.Allocator) ![]const u8 {
         _ = ptr;
+        _ = allocator;
         return "<native fn>";
     }
 };
@@ -569,6 +570,8 @@ pub const Interpreter = struct {
             .number => |value| return value == b.number,
             .boolean => |value| return value == b.boolean,
             .string => |value| return std.mem.eql(u8, value, b.string),
+            .callable => |value| return value == b.callable,
+            .instance => |value| return value == b.instance,
             else => return false,
         }
         return false;

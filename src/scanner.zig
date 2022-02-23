@@ -159,6 +159,7 @@ pub const Scanner = struct {
     }
 };
 
+// In jlox this is a hashmap
 fn matchIdentifier(str: []const u8) ?TokenType {
     if (std.mem.eql(u8, "and", str)) return .AND;
     if (std.mem.eql(u8, "class", str)) return .CLASS;

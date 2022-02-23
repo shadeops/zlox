@@ -89,7 +89,8 @@ pub const LoxClass = struct {
         return Object.initInstance(instance);
     }
 
-    fn toString(ptr: *const anyopaque) []const u8 {
+    fn toString(ptr: *const anyopaque, allocator: std.mem.Allocator) ![]const u8 {
+        _ = allocator;
         var self = castToConstSelf(Self, ptr);
         return self.name;
     }

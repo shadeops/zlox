@@ -94,7 +94,6 @@ pub const ExprType = enum {
 ///     them. Additionally the visitor pattern is also using the interface pattern.
 ///  * It is a compile error to use !void instead of anyerror!void. We should be
 ///     able to define proper errors once we clean up our usages of try.
-// TODO: Avoid using try blindly, catch errors or return named ones.
 pub const Expr = struct {
     impl: *const anyopaque,
     expr_type: ExprType,

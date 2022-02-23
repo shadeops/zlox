@@ -4,6 +4,8 @@ const LoxClass = @import("class.zig").LoxClass;
 const LoxCallable = @import("callable.zig").LoxCallable;
 const Token = @import("token.zig").Token;
 
+const runtimeError = @import("main.zig").runtimeError;
+
 pub const LoxInstance = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
@@ -42,7 +44,8 @@ pub const LoxInstance = struct {
         }
 
         var method = self.class.findMethod(name.lexeme) orelse {
-            std.log.err("Undefined property, '{s}'.", .{name.lexeme});
+            std.log.err("Undefined property '{s}'.", .{name.lexeme});
+            runtimeError(name);
             return error.RuntimeError;
         };
 
@@ -53,8 +56,7 @@ pub const LoxInstance = struct {
         return Object.initCallable(callable_ptr);
     }
 
-    pub fn toString(self: Self) []const u8 {
-        // TODO add instance;
-        return self.class.name;
+    pub fn toString(self: Self, allocator: std.mem.Allocator) ![]const u8 {
+        return try std.fmt.allocPrint(allocator, "{s} instance", .{self.class.name});
     }
 };

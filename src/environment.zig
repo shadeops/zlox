@@ -2,6 +2,8 @@ const std = @import("std");
 const Object = @import("object.zig").Object;
 const Token = @import("token.zig").Token;
 
+const runtimeError = @import("main.zig").runtimeError;
+
 const EnvironmentError = error{
     UndefinedVariable,
     UnknownVariable,
@@ -37,7 +39,8 @@ pub const Environment = struct {
             return self.values.get(name.lexeme).?;
         }
         if (self.enclosing != null) return self.enclosing.?.get(name);
-        std.log.err("Reached top of enclosing environments\n", .{});
+        std.log.err("Undefined variable '{s}'.", .{name.lexeme});
+        runtimeError(name);
         return error.UnknownVariable;
     }
 
@@ -56,6 +59,8 @@ pub const Environment = struct {
             };
             return;
         }
+        std.log.err("Undefined variable '{s}'.", .{name.lexeme});
+        runtimeError(name);
         return error.UndefinedVariable;
     }
 

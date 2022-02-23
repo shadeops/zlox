@@ -80,8 +80,8 @@ pub const Object = union(ObjectType) {
             .string => |value| return try std.fmt.allocPrint(allocator, "{s}", .{value}),
             .number => |value| return try std.fmt.allocPrint(allocator, "{d}", .{value}),
             .boolean => |value| return try std.fmt.allocPrint(allocator, "{}", .{value}),
-            .callable => |value| return value.toString(),
-            .instance => |value| return value.toString(),
+            .callable => |value| return value.toString(allocator),
+            .instance => |value| return value.toString(allocator),
             .nil => return "nil",
         }
     }

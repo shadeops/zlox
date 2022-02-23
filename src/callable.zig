@@ -16,7 +16,7 @@ pub const LoxCallable = struct {
     callable_type: CallableType,
 
     callFn: fn (*const anyopaque, *Interpreter, std.ArrayList(Object)) anyerror!Object,
-    toStringFn: fn (*const anyopaque) []const u8,
+    toStringFn: fn (*const anyopaque, allocator: std.mem.Allocator) anyerror![]const u8,
 
     pub fn call(
         callable: *const LoxCallable,
@@ -26,7 +26,7 @@ pub const LoxCallable = struct {
         return callable.callFn(callable.impl, interpreter, arguments);
     }
 
-    pub fn toString(callable: *const LoxCallable) []const u8 {
-        return callable.toStringFn(callable.impl);
+    pub fn toString(callable: *const LoxCallable, allocator: std.mem.Allocator) anyerror![]const u8 {
+        return try callable.toStringFn(callable.impl, allocator);
     }
 };

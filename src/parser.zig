@@ -35,7 +35,7 @@ pub const Parser = struct {
             //  * In jlox we just append to the statements if it is a null
             //      or Stmt. For this to avoid having an ArrayList with an optional
             //      we'll just ignore the null.
-            var decl = try self.declaration();
+            var decl = self.declaration();
             if (decl != null)
                 try statements.append(decl.?);
         }
@@ -46,7 +46,11 @@ pub const Parser = struct {
         return try self.assignment();
     }
 
-    fn declaration(self: *Self) ParseError!?Stmt.Stmt {
+    // In Jlox declaration() wraps this block up in a try/catch
+    // and if there is an error do a synchronize(). Since we can't
+    // do block try/catch and to avoid having to add a catch to each
+    // function call, we'll just wrap the entire function.
+    fn declarationWithErrors(self: *Self) ParseError!?Stmt.Stmt {
         if (self.match(&.{.CLASS})) {
             return try self.classDeclaration();
         }
@@ -54,12 +58,16 @@ pub const Parser = struct {
             return try self.function("function");
         }
         if (self.match(&.{.VAR})) {
-            return self.varDeclaration() catch {
-                self.synchronize();
-                return null;
-            };
+            return try self.varDeclaration();
         }
         return try self.statement();
+    }
+
+    fn declaration(self: *Self) ?Stmt.Stmt {
+        return self.declarationWithErrors() catch {
+            self.synchronize();
+            return null;
+        };
     }
 
     fn classDeclaration(self: *Self) ParseError!Stmt.Stmt {
@@ -206,12 +214,13 @@ pub const Parser = struct {
         // limit function name to 128 chars to avoid allocation
         var buf: [256]u8 = undefined;
         var kind_len = @minimum(kind.len, 128);
+        var result: []const u8 = undefined;
 
-        _ = std.fmt.bufPrint(buf[0..], "Expect {s} name.", .{kind[0..kind_len]}) catch {};
-        var name = try self.consume(.IDENTIFIER, buf[0..]);
+        result = std.fmt.bufPrint(buf[0..], "Expect {s} name.", .{kind[0..kind_len]}) catch unreachable;
+        var name = try self.consume(.IDENTIFIER, result);
 
-        _ = std.fmt.bufPrint(buf[0..], "Expect '(' after {s} name.", .{kind[0..kind_len]}) catch {};
-        _ = try self.consume(.LEFT_PAREN, buf[0..]);
+        result = std.fmt.bufPrint(buf[0..], "Expect '(' after {s} name.", .{kind[0..kind_len]}) catch unreachable;
+        _ = try self.consume(.LEFT_PAREN, result);
 
         var parameters = std.ArrayList(Token).init(self.allocator);
         if (!self.check(.RIGHT_PAREN)) {
@@ -223,14 +232,14 @@ pub const Parser = struct {
                 try parameters.append(try self.consume(.IDENTIFIER, "Expect parameter name."));
             }
         }
-        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after parameters");
+        _ = try self.consume(.RIGHT_PAREN, "Expect ')' after parameters.");
 
-        _ = std.fmt.bufPrint(
+        result = std.fmt.bufPrint(
             buf[0..],
             "Expect '{{' before {s} body.",
             .{kind[0..kind_len]},
-        ) catch {};
-        _ = try self.consume(.LEFT_BRACE, buf[0..]);
+        ) catch unreachable;
+        _ = try self.consume(.LEFT_BRACE, result);
         var body = try self.block();
         return Stmt.Function.create(self.allocator, name, parameters, body).toStmt();
     }
@@ -239,7 +248,7 @@ pub const Parser = struct {
         var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
         while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
             // if we hit a null skip over it.
-            try statements.append((try self.declaration()) orelse continue);
+            try statements.append(self.declaration() orelse continue);
         }
         _ = try self.consume(.RIGHT_BRACE, "Expect '}' after block.");
         return statements;
@@ -412,6 +421,7 @@ pub const Parser = struct {
             return Expr.Grouping.create(self.allocator, expr).toExpr();
         }
 
+        try reportError(self.peek(), "Expect expression.");
         return ParseError.Expression;
     }
 

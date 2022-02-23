@@ -100,9 +100,12 @@ pub const LoxFunction = struct {
         return Object.initNil();
     }
 
-    fn toString(ptr: *const anyopaque) []const u8 {
-        // todo allocation
-        _ = ptr;
-        return "<fn declaration.name.lexeme>";
+    fn toString(ptr: *const anyopaque, allocator: std.mem.Allocator) ![]const u8 {
+        var self = castToConstSelf(Self, ptr);
+        return try std.fmt.allocPrint(
+            allocator,
+            "<fn {s}>",
+            .{self.declaration.name.lexeme},
+        );
     }
 };
