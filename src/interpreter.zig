@@ -350,7 +350,7 @@ pub const Interpreter = struct {
         self.ret = try self.lookUpVariable(expr.name, expr.toExpr());
     }
 
-    fn lookUpVariable(self: *Self, name: Token, expr: Expr.Expr) !Object {
+    fn lookUpVariable(self: *Self, name: *const Token, expr: Expr.Expr) !Object {
         var distance = self.locals.get(expr);
         if (distance != null) {
             return try self.environment.getAt(distance.?, name.lexeme);
@@ -358,7 +358,7 @@ pub const Interpreter = struct {
         return self.globals.get(name);
     }
 
-    fn checkNumberOperand(operator: Token, operand: Object) !void {
+    fn checkNumberOperand(operator: *const Token, operand: Object) !void {
         _ = operator;
         if (operand == .number) return;
         std.log.err("Operand must be a number.", .{});
@@ -366,7 +366,7 @@ pub const Interpreter = struct {
         return error.Operand;
     }
 
-    fn checkNumberOperands(operator: Token, left: Object, right: Object) !void {
+    fn checkNumberOperands(operator: *const Token, left: Object, right: Object) !void {
         _ = operator;
         if (left == .number and right == .number) return;
         std.log.err("Operands must be numbers.", .{});
@@ -455,7 +455,7 @@ pub const Interpreter = struct {
         for (stmt.methods.items) |method| {
             var function = LoxFunction.create(
                 self.allocator,
-                method.*,
+                method,
                 self.environment,
                 std.mem.eql(u8, method.name.lexeme, "init"),
             );
@@ -490,7 +490,7 @@ pub const Interpreter = struct {
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
         callable_ptr.* = LoxFunction.create(
             self.allocator,
-            stmt.*,
+            stmt,
             self.environment,
             false,
         ).toCallable();

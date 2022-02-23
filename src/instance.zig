@@ -34,11 +34,11 @@ pub const LoxInstance = struct {
         return ptr;
     }
 
-    pub fn set(self: *Self, name: Token, value: Object) !void {
+    pub fn set(self: *Self, name: *const Token, value: Object) !void {
         try self.fields.put(name.lexeme, value);
     }
 
-    pub fn get(self: *Self, name: Token) !Object {
+    pub fn get(self: *Self, name: *const Token) !Object {
         if (self.fields.contains(name.lexeme)) {
             return self.fields.get(name.lexeme).?;
         }

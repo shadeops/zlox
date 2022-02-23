@@ -118,7 +118,7 @@ fn run(allocator: std.mem.Allocator, source: []const u8) void {
     var tokens = token_scanner.scanTokens();
 
     std.log.debug("Starting parser", .{});
-    var parser = Parser.init(allocator, tokens);
+    var parser = Parser.init(allocator, &tokens);
     var statements = parser.parse() catch |err| {
         switch (err) {
             ParseError.Paren, ParseError.Expression => {},
@@ -162,7 +162,7 @@ fn report(line: u32, where: []const u8, message: []const u8) void {
 }
 
 // In jlox this is error(Token, String);
-pub fn tokenError(token: Token, message: []const u8) void {
+pub fn tokenError(token: *const Token, message: []const u8) void {
     if (token.token_type == .EOF) {
         report(token.line, " at end", message);
     } else {
@@ -186,7 +186,7 @@ pub fn tokenError(token: Token, message: []const u8) void {
 // The main reason for doing this is to avoid having to do string process.
 
 // As a TODO it might be useful to wrap all this up into one function.
-pub fn runtimeError(token: Token) void {
+pub fn runtimeError(token: *const Token) void {
     std.log.err("[line {}]", .{token.line});
     had_runtime_error = true;
 }

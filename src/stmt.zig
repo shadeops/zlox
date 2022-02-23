@@ -101,12 +101,12 @@ pub const Block = struct {
 
 pub const Class = struct {
     const Self = @This();
-    name: Token,
+    name: *const Token,
     superclass: ?*Expr.Variable,
     methods: std.ArrayList(*const Function),
 
     pub fn init(
-        name: Token,
+        name: *const Token,
         superclass: ?*Expr.Variable,
         methods: std.ArrayList(*const Function),
     ) Self {
@@ -119,7 +119,7 @@ pub const Class = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        name: Token,
+        name: *const Token,
         superclass: ?*Expr.Variable,
         methods: std.ArrayList(*const Function),
     ) *Self {
@@ -179,11 +179,11 @@ pub const Expression = struct {
 
 pub const Function = struct {
     const Self = @This();
-    name: Token,
-    params: std.ArrayList(Token),
+    name: *const Token,
+    params: std.ArrayList(*const Token),
     body: std.ArrayList(Stmt),
 
-    pub fn init(name: Token, params: std.ArrayList(Token), body: std.ArrayList(Stmt)) Self {
+    pub fn init(name: *const Token, params: std.ArrayList(*const Token), body: std.ArrayList(Stmt)) Self {
         return .{
             .name = name,
             .params = params,
@@ -193,8 +193,8 @@ pub const Function = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        name: Token,
-        params: std.ArrayList(Token),
+        name: *const Token,
+        params: std.ArrayList(*const Token),
         body: std.ArrayList(Stmt),
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
@@ -284,17 +284,17 @@ pub const Print = struct {
 
 pub const Return = struct {
     const Self = @This();
-    keyword: Token,
+    keyword: *const Token,
     value: ?Expr.Expr,
 
-    pub fn init(keyword: Token, value: ?Expr.Expr) Self {
+    pub fn init(keyword: *const Token, value: ?Expr.Expr) Self {
         return .{
             .keyword = keyword,
             .value = value,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: Token, value: ?Expr.Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, keyword: *const Token, value: ?Expr.Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(keyword, value);
         return ptr;
@@ -315,10 +315,10 @@ pub const Return = struct {
 
 pub const Var = struct {
     const Self = @This();
-    name: Token,
+    name: *const Token,
     initializer: ?Expr.Expr,
 
-    pub fn init(name: Token, initializer: ?Expr.Expr) Self {
+    pub fn init(name: *const Token, initializer: ?Expr.Expr) Self {
         return .{
             .name = name,
             .initializer = initializer,
@@ -327,7 +327,7 @@ pub const Var = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        name: Token,
+        name: *const Token,
         initializer: ?Expr.Expr,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;

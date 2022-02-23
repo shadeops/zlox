@@ -16,11 +16,11 @@ pub const ParseError = error{
 
 pub const Parser = struct {
     const Self = @This();
-    tokens: std.ArrayList(Token),
+    tokens: *const std.ArrayList(Token),
     current: u32,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, tokens: std.ArrayList(Token)) Parser {
+    pub fn init(allocator: std.mem.Allocator, tokens: *const std.ArrayList(Token)) Parser {
         return Parser{
             .tokens = tokens,
             .current = 0,
@@ -222,7 +222,7 @@ pub const Parser = struct {
         result = std.fmt.bufPrint(buf[0..], "Expect '(' after {s} name.", .{kind[0..kind_len]}) catch unreachable;
         _ = try self.consume(.LEFT_PAREN, result);
 
-        var parameters = std.ArrayList(Token).init(self.allocator);
+        var parameters = std.ArrayList(*const Token).init(self.allocator);
         if (!self.check(.RIGHT_PAREN)) {
             try parameters.append(try self.consume(.IDENTIFIER, "Expect parameter name."));
             while (self.match(&.{.COMMA})) {
@@ -435,7 +435,7 @@ pub const Parser = struct {
         return false;
     }
 
-    fn consume(self: *Self, token_type: TokenType, message: []const u8) ParseError!Token {
+    fn consume(self: *Self, token_type: TokenType, message: []const u8) ParseError!*const Token {
         if (self.check(token_type)) return self.advance();
         try reportError(self.peek(), message);
         return ParseError.Expression;
@@ -446,7 +446,7 @@ pub const Parser = struct {
         return self.peek().token_type == token_type;
     }
 
-    fn advance(self: *Self) Token {
+    fn advance(self: *Self) *const Token {
         if (!self.isAtEnd()) self.current += 1;
         return self.previous();
     }
@@ -455,15 +455,15 @@ pub const Parser = struct {
         return self.peek().token_type == .EOF;
     }
 
-    fn peek(self: Self) Token {
-        return self.tokens.items[self.current];
+    fn peek(self: Self) *const Token {
+        return &self.tokens.items[self.current];
     }
 
-    fn previous(self: Self) Token {
-        return self.tokens.items[self.current - 1];
+    fn previous(self: Self) *const Token {
+        return &self.tokens.items[self.current - 1];
     }
 
-    fn reportError(token: Token, message: []const u8) ParseError!void {
+    fn reportError(token: *const Token, message: []const u8) ParseError!void {
         Lox.tokenError(token, message);
         return ParseError.Expression;
     }
@@ -486,7 +486,7 @@ pub const Parser = struct {
 test "Parser.check" {
     const a = std.testing.allocator;
 
-    var tokens = std.ArrayList(Token).init(a);
+    var tokens = std.ArrayList(*const Token).init(a);
     defer tokens.deinit();
     try tokens.append(.{
         .token_type = .MINUS,

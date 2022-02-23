@@ -114,10 +114,10 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 
 pub const Assign = struct {
     const Self = @This();
-    name: Token,
+    name: *const Token,
     value: Expr,
 
-    pub fn init(name: Token, value: Expr) Self {
+    pub fn init(name: *const Token, value: Expr) Self {
         return .{
             .name = name,
             .value = value,
@@ -125,7 +125,7 @@ pub const Assign = struct {
     }
 
     /// Creator owns the memory and is responsible for destroying it
-    pub fn create(allocator: std.mem.Allocator, name: Token, value: Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, name: *const Token, value: Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name, value);
         return ptr;
@@ -148,10 +148,10 @@ pub const Assign = struct {
 pub const Binary = struct {
     const Self = @This();
     left: Expr,
-    operator: Token,
+    operator: *const Token,
     right: Expr,
 
-    pub fn init(left: Expr, operator: Token, right: Expr) Self {
+    pub fn init(left: Expr, operator: *const Token, right: Expr) Self {
         return .{
             .left = left,
             .operator = operator,
@@ -162,7 +162,7 @@ pub const Binary = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         left: Expr,
-        operator: Token,
+        operator: *const Token,
         right: Expr,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
@@ -187,10 +187,10 @@ pub const Binary = struct {
 pub const Call = struct {
     const Self = @This();
     callee: Expr,
-    paren: Token,
+    paren: *const Token,
     arguments: std.ArrayList(Expr),
 
-    pub fn init(callee: Expr, paren: Token, arguments: std.ArrayList(Expr)) Self {
+    pub fn init(callee: Expr, paren: *const Token, arguments: std.ArrayList(Expr)) Self {
         return .{
             .callee = callee,
             .paren = paren,
@@ -201,7 +201,7 @@ pub const Call = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         callee: Expr,
-        paren: Token,
+        paren: *const Token,
         arguments: std.ArrayList(Expr),
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
@@ -226,16 +226,16 @@ pub const Call = struct {
 pub const Get = struct {
     const Self = @This();
     object: Expr,
-    name: Token,
+    name: *const Token,
 
-    pub fn init(object: Expr, name: Token) Self {
+    pub fn init(object: Expr, name: *const Token) Self {
         return .{
             .object = object,
             .name = name,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, object: Expr, name: Token) *Self {
+    pub fn create(allocator: std.mem.Allocator, object: Expr, name: *const Token) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(object, name);
         return ptr;
@@ -318,10 +318,10 @@ pub const Literal = struct {
 pub const Logical = struct {
     const Self = @This();
     left: Expr,
-    operator: Token,
+    operator: *const Token,
     right: Expr,
 
-    pub fn init(left: Expr, operator: Token, right: Expr) Self {
+    pub fn init(left: Expr, operator: *const Token, right: Expr) Self {
         return .{
             .left = left,
             .operator = operator,
@@ -329,7 +329,7 @@ pub const Logical = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, left: Expr, operator: Token, right: Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, left: Expr, operator: *const Token, right: Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(left, operator, right);
         return ptr;
@@ -352,10 +352,10 @@ pub const Logical = struct {
 pub const Set = struct {
     const Self = @This();
     object: Expr,
-    name: Token,
+    name: *const Token,
     value: Expr,
 
-    pub fn init(object: Expr, name: Token, value: Expr) Self {
+    pub fn init(object: Expr, name: *const Token, value: Expr) Self {
         return .{
             .object = object,
             .name = name,
@@ -363,7 +363,7 @@ pub const Set = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, object: Expr, name: Token, value: Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, object: Expr, name: *const Token, value: Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(object, name, value);
         return ptr;
@@ -385,17 +385,17 @@ pub const Set = struct {
 
 pub const Super = struct {
     const Self = @This();
-    keyword: Token,
-    method: Token,
+    keyword: *const Token,
+    method: *const Token,
 
-    pub fn init(keyword: Token, method: Token) Self {
+    pub fn init(keyword: *const Token, method: *const Token) Self {
         return .{
             .keyword = keyword,
             .method = method,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: Token, method: Token) *Self {
+    pub fn create(allocator: std.mem.Allocator, keyword: *const Token, method: *const Token) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(keyword, method);
         return ptr;
@@ -417,15 +417,15 @@ pub const Super = struct {
 
 pub const This = struct {
     const Self = @This();
-    keyword: Token,
+    keyword: *const Token,
 
-    pub fn init(keyword: Token) Self {
+    pub fn init(keyword: *const Token) Self {
         return .{
             .keyword = keyword,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: Token) *Self {
+    pub fn create(allocator: std.mem.Allocator, keyword: *const Token) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(keyword);
         return ptr;
@@ -447,17 +447,17 @@ pub const This = struct {
 
 pub const Unary = struct {
     const Self = @This();
-    operator: Token,
+    operator: *const Token,
     right: Expr,
 
-    pub fn init(operator: Token, right: Expr) Self {
+    pub fn init(operator: *const Token, right: Expr) Self {
         return .{
             .operator = operator,
             .right = right,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, operator: Token, right: Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, operator: *const Token, right: Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(operator, right);
         return ptr;
@@ -479,15 +479,15 @@ pub const Unary = struct {
 
 pub const Variable = struct {
     const Self = @This();
-    name: Token,
+    name: *const Token,
 
-    pub fn init(name: Token) Self {
+    pub fn init(name: *const Token) Self {
         return .{
             .name = name,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, name: Token) *Self {
+    pub fn create(allocator: std.mem.Allocator, name: *const Token) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name);
         return ptr;

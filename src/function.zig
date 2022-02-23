@@ -14,12 +14,12 @@ fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
 
 pub const LoxFunction = struct {
     const Self = @This();
-    declaration: Stmt.Function,
+    declaration: *const Stmt.Function,
     closure: *Environment,
     is_initializer: bool,
 
     pub fn init(
-        declaration: Stmt.Function,
+        declaration: *const Stmt.Function,
         closure: *Environment,
         is_initializer: bool,
     ) Self {
@@ -32,7 +32,7 @@ pub const LoxFunction = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        declaration: Stmt.Function,
+        declaration: *const Stmt.Function,
         closure: *Environment,
         is_initializer: bool,
     ) *Self {

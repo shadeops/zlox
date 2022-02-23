@@ -324,7 +324,7 @@ pub const Resolver = struct {
         self.allocator.destroy(scope);
     }
 
-    fn declare(self: *Self, name: Token) !void {
+    fn declare(self: *Self, name: *const Token) !void {
         if (self.scopeIsEmpty()) return;
         var scope = self.scopePeek();
         if (scope.contains(name.lexeme)) {
@@ -333,13 +333,13 @@ pub const Resolver = struct {
         try scope.put(name.lexeme, false);
     }
 
-    fn define(self: *Self, name: Token) !void {
+    fn define(self: *Self, name: *const Token) !void {
         if (self.scopeIsEmpty()) return;
         var scope = self.scopePeek();
         try scope.put(name.lexeme, true);
     }
 
-    fn resolveLocal(self: *Self, expr: Expr.Expr, name: Token) !void {
+    fn resolveLocal(self: *Self, expr: Expr.Expr, name: *const Token) !void {
         for (self.scopes.items) |_, idx| {
             var i = (self.scopes.items.len - 1) - idx;
             if (self.scopes.items[i].contains(name.lexeme)) {

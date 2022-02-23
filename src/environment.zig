@@ -27,7 +27,7 @@ pub const Environment = struct {
         self.values.deinit();
     }
 
-    pub fn get(self: Self, name: Token) EnvironmentError!Object {
+    pub fn get(self: Self, name: *const Token) EnvironmentError!Object {
 
         //std.debug.print("getting: {s} in {*}\n", .{name.lexeme, &self});
         //var it = self.values.keyIterator();
@@ -44,7 +44,7 @@ pub const Environment = struct {
         return error.UnknownVariable;
     }
 
-    pub fn assign(self: *Self, name: Token, value: Object) EnvironmentError!void {
+    pub fn assign(self: *Self, name: *const Token, value: Object) EnvironmentError!void {
         if (self.values.contains(name.lexeme)) {
             self.values.put(name.lexeme, value) catch {
                 std.log.err("Environment: failed to assign {s}\n", .{name});
@@ -74,7 +74,7 @@ pub const Environment = struct {
         return self.ancestor(distance).values.get(name).?;
     }
 
-    pub fn assignAt(self: *Self, distance: usize, name: Token, value: Object) void {
+    pub fn assignAt(self: *Self, distance: usize, name: *const Token, value: Object) void {
         return self.ancestor(distance).values.put(name.lexeme, value) catch {
             std.log.err("Environment: failed to put {s}\n", .{name.lexeme});
         };
