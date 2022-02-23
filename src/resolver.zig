@@ -51,12 +51,6 @@ pub const Resolver = struct {
         if (self.scopes.items.len != 0) unreachable;
     }
 
-    pub fn resolveStmts(self: *Self, statements: std.ArrayList(Stmt.Stmt)) !void {
-        for (statements.items) |statement| {
-            try self.resolveStmt(statement);
-        }
-    }
-
     fn exprInterface(self: *Self) Expr.VisitorInterface {
         return .{
             .impl = @ptrCast(*anyopaque, self),
@@ -92,33 +86,33 @@ pub const Resolver = struct {
 
     fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.value);
+        try self.resolve(expr.value);
         try self.resolveLocal(expr.toExpr(), expr.name);
     }
 
     fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Binary) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.left);
-        try self.resolveExpr(expr.right);
+        try self.resolve(expr.left);
+        try self.resolve(expr.right);
     }
 
     fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.callee);
+        try self.resolve(expr.callee);
 
         for (expr.arguments.items) |argument| {
-            try self.resolveExpr(argument);
+            try self.resolve(argument);
         }
     }
 
     fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.object);
+        try self.resolve(expr.object);
     }
 
     fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.expression);
+        try self.resolve(expr.expression);
     }
 
     fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
@@ -128,14 +122,14 @@ pub const Resolver = struct {
 
     fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.left);
-        try self.resolveExpr(expr.right);
+        try self.resolve(expr.left);
+        try self.resolve(expr.right);
     }
 
     fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.value);
-        try self.resolveExpr(expr.object);
+        try self.resolve(expr.value);
+        try self.resolve(expr.object);
     }
 
     fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
@@ -159,7 +153,7 @@ pub const Resolver = struct {
 
     fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(expr.right);
+        try self.resolve(expr.right);
     }
 
     fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
@@ -177,7 +171,7 @@ pub const Resolver = struct {
     fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.beginScope();
-        try self.resolveStmts(stmt.statements);
+        try self.resolve(stmt.statements);
         self.endScope();
     }
 
@@ -198,7 +192,7 @@ pub const Resolver = struct {
 
         if (stmt.superclass != null) {
             current_class = .SUBCLASS;
-            try self.resolveExpr(stmt.superclass.?.toExpr());
+            try self.resolve(stmt.superclass.?.toExpr());
         }
 
         if (stmt.superclass != null) {
@@ -226,7 +220,7 @@ pub const Resolver = struct {
 
     fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(stmt.expression);
+        try self.resolve(stmt.expression);
     }
 
     fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Function) anyerror!void {
@@ -238,15 +232,15 @@ pub const Resolver = struct {
 
     fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(stmt.condition);
-        try self.resolveStmt(stmt.then_branch);
+        try self.resolve(stmt.condition);
+        try self.resolve(stmt.then_branch);
         if (stmt.else_branch != null)
-            try self.resolveStmt(stmt.else_branch.?);
+            try self.resolve(stmt.else_branch.?);
     }
 
     fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Print) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(stmt.expression);
+        try self.resolve(stmt.expression);
     }
 
     fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
@@ -259,7 +253,7 @@ pub const Resolver = struct {
             if (self.current_function == .INITIALIZER) {
                 Lox.tokenError(stmt.keyword, "Can't return a value from an initializer.");
             }
-            try self.resolveExpr(stmt.value.?);
+            try self.resolve(stmt.value.?);
         }
     }
 
@@ -267,26 +261,36 @@ pub const Resolver = struct {
         const self = castToSelf(Self, ptr);
         try self.declare(stmt.name);
         if (stmt.initializer != null) {
-            try self.resolveExpr(stmt.initializer.?);
+            try self.resolve(stmt.initializer.?);
         }
         try self.define(stmt.name);
     }
     fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolveExpr(stmt.condition);
-        try self.resolveStmt(stmt.body);
+        try self.resolve(stmt.condition);
+        try self.resolve(stmt.body);
     }
 
-    // TODO create a single resolve figures out which of the 3 to call
-    // via comptime expression
-    fn resolveStmt(self: *Self, statement: Stmt.Stmt) !void {
-        var iface = self.stmtInterface();
-        try statement.accept(&iface);
-    }
-
-    fn resolveExpr(self: *Self, expr: Expr.Expr) !void {
-        var iface = self.exprInterface();
-        try expr.accept(&iface);
+    pub fn resolve(self: *Self, thing: anytype) !void {
+        switch (@TypeOf(thing)) {
+            Stmt.Stmt => {
+                var iface = self.stmtInterface();
+                try thing.accept(&iface);
+            },
+            Expr.Expr => {
+                var iface = self.exprInterface();
+                try thing.accept(&iface);
+            },
+            std.ArrayList(Stmt.Stmt) => {
+                for (thing.items) |item| {
+                    try self.resolve(item);
+                }
+            },
+            else => {
+                @compileError("resolve requires a Stmt.Stmt, " ++
+                    "Expr.Expr or std.ArrayList(Stmt.Stmt)");
+            },
+        }
     }
 
     fn resolveFunction(
@@ -301,7 +305,7 @@ pub const Resolver = struct {
             try self.declare(param);
             try self.define(param);
         }
-        try self.resolveStmts(function.body);
+        try self.resolve(function.body);
         self.endScope();
         self.current_function = enclosing_function;
     }

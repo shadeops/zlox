@@ -138,7 +138,7 @@ fn run(allocator: std.mem.Allocator, source: []const u8) void {
 
     std.log.debug("Starting resolver", .{});
     var resolver = Resolver.init(allocator, &interpreter);
-    resolver.resolveStmts(statements) catch {
+    resolver.resolve(statements) catch {
         std.log.err("resolving error", .{});
         return;
     };
@@ -150,11 +150,6 @@ fn run(allocator: std.mem.Allocator, source: []const u8) void {
 
     return;
 }
-
-// TODO: Audit the error workflow. Currently this is possibly
-// out of sync with what jlox is doing partly because we can't
-// easily capture extra data as with Java when raising excepions.
-// Currently the approach isn't consistent.
 
 // In jlox this is error(int, String);
 pub fn lineError(line: u32, message: []const u8) void {

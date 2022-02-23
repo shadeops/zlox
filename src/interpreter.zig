@@ -126,9 +126,6 @@ pub const Interpreter = struct {
         };
     }
 
-    // TODO: Similarly noted in main.zig, handling of errors is a bit out of sync
-    // with jlox. Ideally we behave in a similar manner but for now is being
-    // neglected while figuring out other details.
     pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
         for (statements.items) |statement| {
             self.execute(statement) catch |err| {
