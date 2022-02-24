@@ -16,12 +16,12 @@ pub const LoxClass = struct {
     const Self = @This();
     name: []const u8,
     superclass: ?*const LoxClass,
-    methods: std.StringHashMap(*LoxFunction),
+    methods: *const std.StringHashMap(*const LoxFunction),
 
     pub fn init(
         name: []const u8,
         superclass: ?*const LoxClass,
-        methods: std.StringHashMap(*LoxFunction),
+        methods: *const std.StringHashMap(*const LoxFunction),
     ) LoxClass {
         return .{
             .name = name,
@@ -34,7 +34,7 @@ pub const LoxClass = struct {
         allocator: std.mem.Allocator,
         name: []const u8,
         superclass: ?*const LoxClass,
-        methods: std.StringHashMap(*LoxFunction),
+        methods: *const std.StringHashMap(*const LoxFunction),
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name, superclass, methods);
@@ -60,7 +60,7 @@ pub const LoxClass = struct {
         };
     }
 
-    pub fn findMethod(self: Self, name: []const u8) ?*LoxFunction {
+    pub fn findMethod(self: Self, name: []const u8) ?*const LoxFunction {
         if (self.methods.contains(name)) {
             return self.methods.get(name);
         }
@@ -75,7 +75,7 @@ pub const LoxClass = struct {
     fn call(
         ptr: *const anyopaque,
         interpreter: *Interpreter,
-        arguments: std.ArrayList(Object),
+        arguments: *const std.ArrayList(Object),
     ) anyerror!Object {
         var self = castToConstSelf(Self, ptr);
 

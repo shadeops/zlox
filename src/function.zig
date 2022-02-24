@@ -68,7 +68,7 @@ pub const LoxFunction = struct {
     pub fn call(
         ptr: *const anyopaque,
         interpreter: *Interpreter,
-        arguments: std.ArrayList(Object),
+        arguments: *const std.ArrayList(Object),
     ) anyerror!Object {
         var self = castToConstSelf(Self, ptr);
 

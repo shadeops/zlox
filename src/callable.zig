@@ -15,13 +15,13 @@ pub const LoxCallable = struct {
     arity: u8,
     callable_type: CallableType,
 
-    callFn: fn (*const anyopaque, *Interpreter, std.ArrayList(Object)) anyerror!Object,
+    callFn: fn (*const anyopaque, *Interpreter, *const std.ArrayList(Object)) anyerror!Object,
     toStringFn: fn (*const anyopaque, allocator: std.mem.Allocator) anyerror![]const u8,
 
     pub fn call(
         callable: *const LoxCallable,
         interpreter: *Interpreter,
-        arguments: std.ArrayList(Object),
+        arguments: *const std.ArrayList(Object),
     ) anyerror!Object {
         return callable.callFn(callable.impl, interpreter, arguments);
     }

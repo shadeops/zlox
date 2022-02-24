@@ -44,7 +44,7 @@ const ClockCall = struct {
     fn call(
         ptr: *const anyopaque,
         interpreter: *Interpreter,
-        arguments: std.ArrayList(Object),
+        arguments: *const std.ArrayList(Object),
     ) anyerror!Object {
         _ = ptr;
         _ = interpreter;
@@ -211,7 +211,8 @@ pub const Interpreter = struct {
 
         var callee = try self.evaluate(expr.callee);
 
-        var arguments = std.ArrayList(Object).init(self.allocator);
+        var arguments = self.allocator.create(std.ArrayList(Object)) catch unreachable;
+        arguments.* = std.ArrayList(Object).init(self.allocator);
         for (expr.arguments.items) |argument| {
             try arguments.append(try self.evaluate(argument));
         }
@@ -451,7 +452,8 @@ pub const Interpreter = struct {
             self.environment.define("super", Object.initCallable(super_callable_ptr));
         }
 
-        var methods = std.StringHashMap(*LoxFunction).init(self.allocator);
+        var methods = self.allocator.create(std.StringHashMap(*const LoxFunction)) catch unreachable;
+        methods.* = std.StringHashMap(*const LoxFunction).init(self.allocator);
         for (stmt.methods.items) |method| {
             var function = LoxFunction.create(
                 self.allocator,
