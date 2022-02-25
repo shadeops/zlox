@@ -64,7 +64,7 @@ pub const Interpreter = struct {
     allocator: std.mem.Allocator,
     environment: *Environment,
     globals: *Environment,
-    locals: std.AutoHashMap(Expr.Expr, usize),
+    locals: std.AutoHashMap(*const Expr.Expr, usize),
 
     // we capture the return value here instead of returning
     // a generic structure
@@ -83,7 +83,7 @@ pub const Interpreter = struct {
             .allocator = allocator,
             .environment = globals,
             .globals = globals,
-            .locals = std.AutoHashMap(Expr.Expr, usize).init(allocator),
+            .locals = std.AutoHashMap(*const Expr.Expr, usize).init(allocator),
         };
     }
 
@@ -134,45 +134,45 @@ pub const Interpreter = struct {
         }
     }
 
-    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
+    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        var value = try self.evaluate(expr.value);
+        var value = try self.evaluate(expr.assign.value);
 
-        var distance = self.locals.get(expr.toExpr());
+        var distance = self.locals.get(expr);
         if (distance != null) {
-            self.environment.assignAt(distance.?, expr.name, value);
+            self.environment.assignAt(distance.?, expr.assign.name, value);
         } else {
-            try self.globals.assign(expr.name, value);
+            try self.globals.assign(expr.assign.name, value);
         }
         self.ret = value;
     }
 
-    fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Binary) anyerror!void {
+    fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        var left = try self.evaluate(expr.left);
-        var right = try self.evaluate(expr.right);
+        var left = try self.evaluate(expr.binary.left);
+        var right = try self.evaluate(expr.binary.right);
 
-        switch (expr.operator.token_type) {
+        switch (expr.binary.operator.token_type) {
             .GREATER => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initBoolean(left.number > right.number);
             },
             .GREATER_EQUAL => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initBoolean(left.number >= right.number);
             },
             .LESS => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initBoolean(left.number < right.number);
             },
             .LESS_EQUAL => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initBoolean(left.number <= right.number);
             },
             .MINUS => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initNumber(left.number - right.number);
             },
             .PLUS => {
@@ -187,15 +187,15 @@ pub const Interpreter = struct {
                     return;
                 }
                 std.log.err("Operands must be two numbers or two strings.", .{});
-                runtimeError(expr.operator);
+                runtimeError(expr.binary.operator);
                 return error.Operand;
             },
             .SLASH => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initNumber(left.number / right.number);
             },
             .STAR => {
-                try checkNumberOperands(expr.operator, left, right);
+                try checkNumberOperands(expr.binary.operator, left, right);
                 self.ret = Object.initNumber(left.number * right.number);
             },
             .BANG_EQUAL => self.ret = Object.initBoolean(!isEqual(left, right)),
@@ -205,21 +205,21 @@ pub const Interpreter = struct {
         return;
     }
 
-    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
+    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
-        var callee = try self.evaluate(expr.callee);
+        var callee = try self.evaluate(expr.call.callee);
 
         var arguments = self.allocator.create(std.ArrayList(Object)) catch unreachable;
         arguments.* = std.ArrayList(Object).init(self.allocator);
-        for (expr.arguments.items) |argument| {
+        for (expr.call.arguments.items) |argument| {
             try arguments.append(try self.evaluate(argument));
         }
 
         if (callee != .callable) {
             std.log.err("Can only call functions and classes.", .{});
-            runtimeError(expr.paren);
+            runtimeError(expr.call.paren);
             return error.Callable;
         }
 
@@ -229,40 +229,40 @@ pub const Interpreter = struct {
                 "Expected {} arguments but got {}.",
                 .{ function.arity, arguments.items.len },
             );
-            runtimeError(expr.paren);
+            runtimeError(expr.call.paren);
             return error.Callable;
         }
 
         self.ret = try function.call(self, arguments);
     }
 
-    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
+    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        var object = try self.evaluate(expr.object);
+        var object = try self.evaluate(expr.get.object);
         if (object == .instance) {
-            self.ret = try object.instance.get(expr.name);
+            self.ret = try object.instance.get(expr.get.name);
             return;
         }
         std.log.err("Only instances have properties.", .{});
-        runtimeError(expr.name);
+        runtimeError(expr.get.name);
         return error.Class;
     }
 
-    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
+    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        self.ret = try self.evaluate(expr.expression);
+        self.ret = try self.evaluate(expr.grouping.expression);
     }
 
-    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
+    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        self.ret = expr.value;
+        self.ret = expr.literal.value;
     }
 
-    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
+    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        var left = try self.evaluate(expr.left);
+        var left = try self.evaluate(expr.logical.left);
 
-        if (expr.operator.token_type == .OR) {
+        if (expr.logical.operator.token_type == .OR) {
             if (isTruthy(left)) {
                 self.ret = left;
                 return;
@@ -274,26 +274,26 @@ pub const Interpreter = struct {
             }
         }
 
-        self.ret = try self.evaluate(expr.right);
+        self.ret = try self.evaluate(expr.logical.right);
     }
 
-    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
+    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        var object = try self.evaluate(expr.object);
+        var object = try self.evaluate(expr.set.object);
         if (object != .instance) {
             std.log.err("Only instances have fields.", .{});
-            runtimeError(expr.name);
+            runtimeError(expr.set.name);
             return error.Class;
         }
-        var value = try self.evaluate(expr.value);
-        try object.instance.set(expr.name, value);
+        var value = try self.evaluate(expr.set.value);
+        try object.instance.set(expr.set.name, value);
         self.ret = value;
     }
 
-    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
+    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        var distance = self.locals.get(expr.toExpr()) orelse {
+        var distance = self.locals.get(expr) orelse {
             std.log.err("Could not evaluate distance\n", .{});
             unreachable;
         };
@@ -312,10 +312,10 @@ pub const Interpreter = struct {
             object.instance,
         ));
 
-        var method = superclass.findMethod(expr.method.lexeme);
+        var method = superclass.findMethod(expr.super.method.lexeme);
         if (method == null) {
-            std.log.err("Undefined property '{s}'.", .{expr.method.lexeme});
-            runtimeError(expr.method);
+            std.log.err("Undefined property '{s}'.", .{expr.super.method.lexeme});
+            runtimeError(expr.super.method);
             return error.Class;
         }
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
@@ -323,21 +323,21 @@ pub const Interpreter = struct {
         self.ret = Object.initCallable(callable_ptr);
     }
 
-    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
+    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        self.ret = try self.lookUpVariable(expr.keyword, expr.toExpr());
+        self.ret = try self.lookUpVariable(expr.this.keyword, expr);
     }
 
-    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
+    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
 
-        var right = try self.evaluate(expr.right);
-        switch (expr.operator.token_type) {
+        var right = try self.evaluate(expr.unary.right);
+        switch (expr.unary.operator.token_type) {
             .BANG => {
                 self.ret = Object.initBoolean(!isTruthy(right));
             },
             .MINUS => {
-                try checkNumberOperand(expr.operator, right);
+                try checkNumberOperand(expr.unary.operator, right);
                 self.ret = Object.initNumber(-right.number);
             },
             else => {
@@ -346,12 +346,12 @@ pub const Interpreter = struct {
         }
     }
 
-    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
+    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        self.ret = try self.lookUpVariable(expr.name, expr.toExpr());
+        self.ret = try self.lookUpVariable(expr.variable.name, expr);
     }
 
-    fn lookUpVariable(self: *Self, name: *const Token, expr: Expr.Expr) !Object {
+    fn lookUpVariable(self: *Self, name: *const Token, expr: *const Expr.Expr) !Object {
         var distance = self.locals.get(expr);
         if (distance != null) {
             return try self.environment.getAt(distance.?, name.lexeme);
@@ -375,7 +375,7 @@ pub const Interpreter = struct {
         return error.Operand;
     }
 
-    fn evaluate(self: *Self, expr: Expr.Expr) !Object {
+    fn evaluate(self: *Self, expr: *const Expr.Expr) !Object {
         var iface = self.exprInterface();
         // Whichever Expr accepts the Interpreter Interface which will
         // update the Interpreter's ret value
@@ -390,7 +390,7 @@ pub const Interpreter = struct {
         try stmt.accept(&iface);
     }
 
-    pub fn resolve(self: *Self, expr: Expr.Expr, depth: usize) !void {
+    pub fn resolve(self: *Self, expr: *const Expr.Expr, depth: usize) !void {
         try self.locals.put(expr, depth);
     }
 
@@ -425,7 +425,9 @@ pub const Interpreter = struct {
 
         var superclass: ?*const LoxClass = null;
         if (stmt.superclass != null) {
-            var superclass_obj = try self.evaluate(stmt.superclass.?.toExpr());
+            
+            var expr = Expr.Expr.create(self.allocator, stmt.superclass.?.*);
+            var superclass_obj = try self.evaluate(expr);
             if (superclass_obj != .callable or superclass_obj.callable.callable_type != .CLASS) {
                 std.log.err("Superclass must be a class.", .{});
                 runtimeError(stmt.superclass.?.name);

@@ -84,88 +84,88 @@ pub const Resolver = struct {
         };
     }
 
-    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Assign) anyerror!void {
+    fn visitAssignExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.value);
-        try self.resolveLocal(expr.toExpr(), expr.name);
+        try self.resolve(expr.assign.value);
+        try self.resolveLocal(expr, expr.assign.name);
     }
 
-    fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Binary) anyerror!void {
+    fn visitBinaryExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.left);
-        try self.resolve(expr.right);
+        try self.resolve(expr.binary.left);
+        try self.resolve(expr.binary.right);
     }
 
-    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Call) anyerror!void {
+    fn visitCallExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.callee);
+        try self.resolve(expr.call.callee);
 
-        for (expr.arguments.items) |argument| {
+        for (expr.call.arguments.items) |argument| {
             try self.resolve(argument);
         }
     }
 
-    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Get) anyerror!void {
+    fn visitGetExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.object);
+        try self.resolve(expr.get.object);
     }
 
-    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Grouping) anyerror!void {
+    fn visitGroupingExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.expression);
+        try self.resolve(expr.grouping.expression);
     }
 
-    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Literal) anyerror!void {
+    fn visitLiteralExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         _ = ptr;
         _ = expr;
     }
 
-    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Logical) anyerror!void {
+    fn visitLogicalExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.left);
-        try self.resolve(expr.right);
+        try self.resolve(expr.logical.left);
+        try self.resolve(expr.logical.right);
     }
 
-    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Set) anyerror!void {
+    fn visitSetExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.value);
-        try self.resolve(expr.object);
+        try self.resolve(expr.set.value);
+        try self.resolve(expr.set.object);
     }
 
-    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Super) anyerror!void {
+    fn visitSuperExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            Lox.tokenError(expr.keyword, "Can't use 'super' outside of a class.");
+            Lox.tokenError(expr.super.keyword, "Can't use 'super' outside of a class.");
         } else if (current_class != .SUBCLASS) {
-            Lox.tokenError(expr.keyword, "Can't use 'super' in a class with no superclass.");
+            Lox.tokenError(expr.super.keyword, "Can't use 'super' in a class with no superclass.");
         }
-        try self.resolveLocal(expr.toExpr(), expr.keyword);
+        try self.resolveLocal(expr, expr.super.keyword);
     }
 
-    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.This) anyerror!void {
+    fn visitThisExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (current_class == .NONE) {
-            Lox.tokenError(expr.keyword, "Can't use 'this' outside of a class.");
+            Lox.tokenError(expr.this.keyword, "Can't use 'this' outside of a class.");
             return;
         }
-        try self.resolveLocal(expr.toExpr(), expr.keyword);
+        try self.resolveLocal(expr, expr.this.keyword);
     }
 
-    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Unary) anyerror!void {
+    fn visitUnaryExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(expr.right);
+        try self.resolve(expr.unary.right);
     }
 
-    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Variable) anyerror!void {
+    fn visitVariableExpr(ptr: *anyopaque, expr: *const Expr.Expr) anyerror!void {
         const self = castToSelf(Self, ptr);
 
         if (!self.scopeIsEmpty() and
-            self.scopePeek().get(expr.name.lexeme) != null and
-            self.scopePeek().get(expr.name.lexeme).? == false)
+            self.scopePeek().get(expr.variable.name.lexeme) != null and
+            self.scopePeek().get(expr.variable.name.lexeme).? == false)
         {
-            Lox.tokenError(expr.name, "Can't read local variable in its own initializer.");
+            Lox.tokenError(expr.variable.name, "Can't read local variable in its own initializer.");
         }
-        try self.resolveLocal(expr.toExpr(), expr.name);
+        try self.resolveLocal(expr, expr.variable.name);
     }
 
     fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
@@ -192,7 +192,10 @@ pub const Resolver = struct {
 
         if (stmt.superclass != null) {
             current_class = .SUBCLASS;
-            try self.resolve(stmt.superclass.?.toExpr());
+            // might need to allocate this
+            //var expr = @as(*const Expr.Expr, &Expr.Expr{.variable = stmt.superclass.?.*});
+            var expr:*const Expr.Expr = Expr.Expr.create(self.allocator, stmt.superclass.?.*);
+            try self.resolve(expr);
         }
 
         if (stmt.superclass != null) {
@@ -277,7 +280,7 @@ pub const Resolver = struct {
                 var iface = self.stmtInterface();
                 try thing.accept(&iface);
             },
-            Expr.Expr => {
+            *const Expr.Expr => {
                 var iface = self.exprInterface();
                 try thing.accept(&iface);
             },
@@ -288,7 +291,7 @@ pub const Resolver = struct {
             },
             else => {
                 @compileError("resolve requires a Stmt.Stmt, " ++
-                    "Expr.Expr or std.ArrayList(Stmt.Stmt)");
+                    "*const Expr.Expr or std.ArrayList(Stmt.Stmt)");
             },
         }
     }
@@ -339,7 +342,7 @@ pub const Resolver = struct {
         try scope.put(name.lexeme, true);
     }
 
-    fn resolveLocal(self: *Self, expr: Expr.Expr, name: *const Token) !void {
+    fn resolveLocal(self: *Self, expr:*const Expr.Expr, name: *const Token) !void {
         for (self.scopes.items) |_, idx| {
             var i = (self.scopes.items.len - 1) - idx;
             if (self.scopes.items[i].contains(name.lexeme)) {
@@ -376,10 +379,10 @@ test "Resolver.maptest" {
     //    try std.testing.expect(stack.items[0].get("b").?);
 }
 
-fn getExpr(x: *Expr.Literal) Expr.Expr {
-    var y = x.toExpr();
-    return y;
-}
+//fn getExpr(x: *Expr.Literal) Expr.Expr {
+//    var y = x.toExpr();
+//    return y;
+//}
 
 test "Resolve.ptrmap" {
     //    const Object = @import("object.zig").Object;

@@ -42,7 +42,7 @@ pub const Parser = struct {
         return statements;
     }
 
-    fn expression(self: *Self) ParseError!Expr.Expr {
+    fn expression(self: *Self) ParseError!*const Expr.Expr {
         return try self.assignment();
     }
 
@@ -76,7 +76,8 @@ pub const Parser = struct {
         var superclass: ?*Expr.Variable = null;
         if (self.match(&.{.LESS})) {
             _ = try self.consume(.IDENTIFIER, "Expect superclass name.");
-            superclass = Expr.Variable.create(self.allocator, self.previous());
+            superclass = try self.allocator.create(Expr.Variable);
+            superclass.?.* = Expr.Variable.init(self.previous());
         }
 
         _ = try self.consume(.LEFT_BRACE, "Expect '{' before class body.");
@@ -116,14 +117,14 @@ pub const Parser = struct {
             initializer = try self.expressionStatement();
         }
 
-        var condition: ?Expr.Expr = null;
+        var condition: ?*const Expr.Expr = null;
         if (!self.check(.SEMICOLON)) {
             condition = try self.expression();
         }
 
         _ = try self.consume(.SEMICOLON, "Expect ';' after loop condition.");
 
-        var increment: ?Expr.Expr = null;
+        var increment: ?*const Expr.Expr = null;
         if (!self.check(.RIGHT_PAREN)) {
             increment = try self.expression();
         }
@@ -139,7 +140,7 @@ pub const Parser = struct {
         }
 
         if (condition == null)
-            condition = Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
+            condition = Expr.Expr.create(self.allocator, Expr.Literal.init(Object.initBoolean(true)));
         body = Stmt.While.create(self.allocator, condition.?, body).toStmt();
 
         if (initializer != null) {
@@ -175,7 +176,7 @@ pub const Parser = struct {
 
     fn returnStatement(self: *Self) ParseError!Stmt.Stmt {
         var keyword = self.previous();
-        var value: ?Expr.Expr = null;
+        var value: ?*const Expr.Expr = null;
         if (!self.check(.SEMICOLON)) {
             value = try self.expression();
         }
@@ -186,7 +187,7 @@ pub const Parser = struct {
     fn varDeclaration(self: *Self) ParseError!Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect variable name.");
 
-        var initializer: ?Expr.Expr = null;
+        var initializer: ?*const Expr.Expr = null;
         if (self.match(&.{.EQUAL})) {
             initializer = try self.expression();
         }
@@ -254,26 +255,18 @@ pub const Parser = struct {
         return statements;
     }
 
-    fn assignment(self: *Self) ParseError!Expr.Expr {
+    fn assignment(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.orOp();
 
         if (self.match(&.{.EQUAL})) {
             var equals = self.previous();
             var value = try self.assignment();
 
-            if (expr.expr_type == .VARIABLE) {
-                const alignment = @alignOf(Expr.Variable);
-                var variable_expr = @ptrCast(
-                    *const Expr.Variable,
-                    @alignCast(alignment, expr.impl),
-                );
-                var name = variable_expr.name;
-                return Expr.Assign.create(self.allocator, name, value).toExpr();
-            } else if (expr.expr_type == .GET) {
-                const alignment = @alignOf(Expr.Get);
-                var get = @ptrCast(*const Expr.Get, @alignCast(alignment, expr.impl));
-                return Expr.Set.create(self.allocator, get.object, get.name, value).toExpr();
-            }
+            switch(expr.*) {
+                .variable => |val| return Expr.Expr.create(self.allocator, Expr.Assign.init(val.name, value)),
+                .get => |val| return Expr.Expr.create(self.allocator, Expr.Set.init(val.object, val.name, value)),
+                else => {},
+            } 
 
             try reportError(equals, "Invalid assignment target.");
         }
@@ -281,90 +274,90 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn orOp(self: *Self) ParseError!Expr.Expr {
+    fn orOp(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.andOp();
 
         while (self.match(&.{.OR})) {
             var operator = self.previous();
             var right = try self.andOp();
-            expr = Expr.Logical.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Logical.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn andOp(self: *Self) ParseError!Expr.Expr {
+    fn andOp(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.equality();
 
         while (self.match(&.{.AND})) {
             var operator = self.previous();
             var right = try self.equality();
-            expr = Expr.Logical.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Logical.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn equality(self: *Self) ParseError!Expr.Expr {
+    fn equality(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.comparison();
 
         while (self.match(&.{ .BANG_EQUAL, .EQUAL_EQUAL })) {
             var operator = self.previous();
             var right = try self.comparison();
-            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Binary.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn comparison(self: *Self) ParseError!Expr.Expr {
+    fn comparison(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.term();
 
         while (self.match(&.{ .GREATER, .GREATER_EQUAL, .LESS, .LESS_EQUAL })) {
             var operator = self.previous();
             var right = try self.term();
-            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Binary.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn term(self: *Self) ParseError!Expr.Expr {
+    fn term(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.factor();
 
         while (self.match(&.{ .MINUS, .PLUS })) {
             var operator = self.previous();
             var right = try self.factor();
-            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Binary.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn factor(self: *Self) ParseError!Expr.Expr {
+    fn factor(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.unary();
 
         while (self.match(&.{ .SLASH, .STAR })) {
             var operator = self.previous();
             var right = try self.unary();
-            expr = Expr.Binary.create(self.allocator, expr, operator, right).toExpr();
+            expr = Expr.Expr.create(self.allocator, Expr.Binary.init(expr, operator, right));
         }
 
         return expr;
     }
 
-    fn unary(self: *Self) ParseError!Expr.Expr {
+    fn unary(self: *Self) ParseError!*const Expr.Expr {
         if (self.match(&.{ .BANG, .MINUS })) {
             var operator = self.previous();
             var right = try self.unary();
-            return Expr.Unary.create(self.allocator, operator, right).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Unary.init(operator, right));
         }
 
         return try self.call();
     }
 
-    fn finishCall(self: *Self, callee: Expr.Expr) ParseError!Expr.Expr {
-        var arguments = std.ArrayList(Expr.Expr).init(self.allocator);
+    fn finishCall(self: *Self, callee: *const Expr.Expr) ParseError!*const Expr.Expr {
+        var arguments = std.ArrayList(*const Expr.Expr).init(self.allocator);
         if (!self.check(.RIGHT_PAREN)) {
             try arguments.append(try self.expression());
             while (self.match(&.{.COMMA})) {
@@ -376,10 +369,10 @@ pub const Parser = struct {
         }
 
         var paren = try self.consume(.RIGHT_PAREN, "Expect ')' after arguments.");
-        return Expr.Call.create(self.allocator, callee, paren, arguments).toExpr();
+        return Expr.Expr.create(self.allocator, Expr.Call.init(callee, paren, arguments));
     }
 
-    fn call(self: *Self) ParseError!Expr.Expr {
+    fn call(self: *Self) ParseError!*const Expr.Expr {
         var expr = try self.primary();
 
         while (true) {
@@ -387,7 +380,7 @@ pub const Parser = struct {
                 expr = try self.finishCall(expr);
             } else if (self.match(&.{.DOT})) {
                 var name = try self.consume(.IDENTIFIER, "Expect property name after '.'.");
-                expr = Expr.Get.create(self.allocator, expr, name).toExpr();
+                expr = Expr.Expr.create(self.allocator, Expr.Get.init(expr, name));
             } else {
                 break;
             }
@@ -396,29 +389,29 @@ pub const Parser = struct {
         return expr;
     }
 
-    fn primary(self: *Self) ParseError!Expr.Expr {
+    fn primary(self: *Self) ParseError!*const Expr.Expr {
         if (self.match(&.{.FALSE}))
-            return Expr.Literal.create(self.allocator, Object.initBoolean(false)).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Literal.init(Object.initBoolean(false)));
         if (self.match(&.{.TRUE}))
-            return Expr.Literal.create(self.allocator, Object.initBoolean(true)).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Literal.init(Object.initBoolean(true)));
         if (self.match(&.{.NIL}))
-            return Expr.Literal.create(self.allocator, Object.initNil()).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Literal.init(Object.initNil()));
         if (self.match(&.{ .NUMBER, .STRING }))
-            return Expr.Literal.create(self.allocator, self.previous().literal.?).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Literal.init(self.previous().literal.?));
         if (self.match(&.{.SUPER})) {
             var keyword = self.previous();
             _ = try self.consume(.DOT, "Expect '.' after 'super'.");
             var method = try self.consume(.IDENTIFIER, "Expect superclass method name.");
-            return Expr.Super.create(self.allocator, keyword, method).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Super.init(keyword, method));
         }
         if (self.match(&.{.THIS}))
-            return Expr.This.create(self.allocator, self.previous()).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.This.init(self.previous()));
         if (self.match(&.{.IDENTIFIER}))
-            return Expr.Variable.create(self.allocator, self.previous()).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Variable.init(self.previous()));
         if (self.match(&.{.LEFT_PAREN})) {
             var expr = try self.expression();
             _ = try self.consume(.RIGHT_PAREN, "Expect ')' after expression.");
-            return Expr.Grouping.create(self.allocator, expr).toExpr();
+            return Expr.Expr.create(self.allocator, Expr.Grouping.init(expr));
         }
 
         try reportError(self.peek(), "Expect expression.");
@@ -485,8 +478,7 @@ pub const Parser = struct {
 
 test "Parser.check" {
     const a = std.testing.allocator;
-
-    var tokens = std.ArrayList(*const Token).init(a);
+    var tokens = std.ArrayList(Token).init(a);
     defer tokens.deinit();
     try tokens.append(.{
         .token_type = .MINUS,
@@ -507,7 +499,7 @@ test "Parser.check" {
         .line = 1,
     });
 
-    var parser = Parser.init(a, tokens);
+    var parser = Parser.init(a, &tokens);
     try std.testing.expect(parser.check(.MINUS));
     try std.testing.expect(parser.advance().token_type == .MINUS);
     try std.testing.expect(parser.check(.PLUS));

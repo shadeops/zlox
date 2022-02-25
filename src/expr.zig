@@ -5,64 +5,64 @@ const Object = @import("object.zig").Object;
 pub const VisitorInterface = struct {
     impl: *anyopaque,
 
-    visitAssignExprFn: fn (*anyopaque, *const Assign) anyerror!void,
-    visitBinaryExprFn: fn (*anyopaque, *const Binary) anyerror!void,
-    visitCallExprFn: fn (*anyopaque, *const Call) anyerror!void,
-    visitGetExprFn: fn (*anyopaque, *const Get) anyerror!void,
-    visitGroupingExprFn: fn (*anyopaque, *const Grouping) anyerror!void,
-    visitLiteralExprFn: fn (*anyopaque, *const Literal) anyerror!void,
-    visitLogicalExprFn: fn (*anyopaque, *const Logical) anyerror!void,
-    visitSetExprFn: fn (*anyopaque, *const Set) anyerror!void,
-    visitSuperExprFn: fn (*anyopaque, *const Super) anyerror!void,
-    visitThisExprFn: fn (*anyopaque, *const This) anyerror!void,
-    visitUnaryExprFn: fn (*anyopaque, *const Unary) anyerror!void,
-    visitVariableExprFn: fn (*anyopaque, *const Variable) anyerror!void,
+    visitAssignExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitBinaryExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitCallExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitGetExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitGroupingExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitLiteralExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitLogicalExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitSetExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitSuperExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitThisExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitUnaryExprFn: fn (*anyopaque, *const Expr) anyerror!void,
+    visitVariableExprFn: fn (*anyopaque, *const Expr) anyerror!void,
 
-    pub fn visitAssignExpr(iface: *VisitorInterface, expr: *const Assign) anyerror!void {
+    pub fn visitAssignExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitAssignExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitBinaryExpr(iface: *VisitorInterface, expr: *const Binary) anyerror!void {
+    pub fn visitBinaryExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitBinaryExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitCallExpr(iface: *VisitorInterface, expr: *const Call) anyerror!void {
+    pub fn visitCallExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitCallExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitGetExpr(iface: *VisitorInterface, expr: *const Get) anyerror!void {
+    pub fn visitGetExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitGetExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitGroupingExpr(iface: *VisitorInterface, expr: *const Grouping) anyerror!void {
+    pub fn visitGroupingExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitGroupingExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitLiteralExpr(iface: *VisitorInterface, expr: *const Literal) anyerror!void {
+    pub fn visitLiteralExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitLiteralExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitLogicalExpr(iface: *VisitorInterface, expr: *const Logical) anyerror!void {
+    pub fn visitLogicalExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitLogicalExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitSetExpr(iface: *VisitorInterface, expr: *const Set) anyerror!void {
+    pub fn visitSetExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitSetExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitSuperExpr(iface: *VisitorInterface, expr: *const Super) anyerror!void {
+    pub fn visitSuperExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitSuperExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitThisExpr(iface: *VisitorInterface, expr: *const This) anyerror!void {
+    pub fn visitThisExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitThisExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitUnaryExpr(iface: *VisitorInterface, expr: *const Unary) anyerror!void {
+    pub fn visitUnaryExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitUnaryExprFn(iface.impl, expr);
         return;
     }
-    pub fn visitVariableExpr(iface: *VisitorInterface, expr: *const Variable) anyerror!void {
+    pub fn visitVariableExpr(iface: *VisitorInterface, expr: *const Expr) anyerror!void {
         try iface.visitVariableExprFn(iface.impl, expr);
         return;
     }
@@ -74,18 +74,18 @@ pub const VisitorInterface = struct {
 ///     union so need to store an ExprType as part of Expr so we can handle the
 ///     type. Initially the goal was to avoid having to do this.
 pub const ExprType = enum {
-    ASSIGN,
-    BINARY,
-    CALL,
-    GET,
-    GROUPING,
-    LITERAL,
-    LOGICAL,
-    SET,
-    SUPER,
-    THIS,
-    UNARY,
-    VARIABLE,
+    assign,
+    binary,
+    call,
+    get,
+    grouping,
+    literal,
+    logical,
+    set,
+    super,
+    this,
+    unary,
+    variable,
 };
 
 /// NOTES:
@@ -94,64 +94,86 @@ pub const ExprType = enum {
 ///     them. Additionally the visitor pattern is also using the interface pattern.
 ///  * It is a compile error to use !void instead of anyerror!void. We should be
 ///     able to define proper errors once we clean up our usages of try.
-pub const Expr = struct {
-    impl: *const anyopaque,
-    expr_type: ExprType,
+pub const Expr = union (ExprType) {
+    const Self = @This();
 
-    acceptFn: fn (*const anyopaque, *VisitorInterface) anyerror!void,
+    assign: Assign,
+    binary: Binary,
+    call: Call,
+    get: Get,
+    grouping: Grouping,
+    literal: Literal,
+    logical: Logical,
+    set: Set,
+    super: Super,
+    this: This,
+    unary: Unary,
+    variable: Variable,
 
-    pub fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
-        try expr.acceptFn(expr.impl, visitor);
+    pub fn accept(self: *const Self, visitor: *VisitorInterface) anyerror!void {
+        switch (self.*) {
+            .assign => try Assign.accept(self, visitor),
+            .binary => try Binary.accept(self, visitor),
+            .call => try Call.accept(self, visitor),
+            .get => try Get.accept(self, visitor),
+            .grouping => try Grouping.accept(self, visitor),
+            .literal => try Literal.accept(self, visitor),
+            .logical => try Logical.accept(self, visitor),
+            .set => try Set.accept(self, visitor),
+            .super => try Super.accept(self, visitor),
+            .this => try This.accept(self, visitor),
+            .unary => try Unary.accept(self, visitor),
+            .variable => try Variable.accept(self, visitor),
+        }
+    }
+
+    pub fn create(allocator: std.mem.Allocator, any_expr: anytype) *Self {
+        var ptr = allocator.create(Self) catch unreachable;
+
+        switch (@TypeOf(any_expr)) {
+            Assign => ptr.* = .{.assign = any_expr},
+            Binary => ptr.* = .{.binary = any_expr},
+            Call => ptr.* = .{.call = any_expr},
+            Get => ptr.* = .{.get = any_expr},
+            Grouping => ptr.* = .{.grouping = any_expr},
+            Literal => ptr.* = .{.literal = any_expr},
+            Logical => ptr.* = .{.logical = any_expr},
+            Set => ptr.* = .{.set = any_expr},
+            Super => ptr.* = .{.super = any_expr},
+            This => ptr.* = .{.this = any_expr},
+            Unary => ptr.* = .{.unary = any_expr},
+            Variable => ptr.* = .{.variable = any_expr},
+            else => @compileError("Not a valid Expr Type"),
+        }
+
+        return ptr;
     }
 };
-
-/// Helper function to cast an opaque interface pointer to the proper type
-fn castToConstSelf(comptime T: type, ptr: *const anyopaque) *const T {
-    const alignment = @alignOf(T);
-    const self = @ptrCast(*const T, @alignCast(alignment, ptr));
-    return self;
-}
 
 pub const Assign = struct {
     const Self = @This();
     name: *const Token,
-    value: Expr,
+    value: *const Expr,
 
-    pub fn init(name: *const Token, value: Expr) Self {
+    pub fn init(name: *const Token, value: *const Expr) Self {
         return .{
             .name = name,
             .value = value,
         };
     }
 
-    /// Creator owns the memory and is responsible for destroying it
-    pub fn create(allocator: std.mem.Allocator, name: *const Token, value: Expr) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(name, value);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .ASSIGN,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitAssignExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitAssignExpr(expr);
     }
 };
 
 pub const Binary = struct {
     const Self = @This();
-    left: Expr,
+    left: *const Expr,
     operator: *const Token,
-    right: Expr,
+    right: *const Expr,
 
-    pub fn init(left: Expr, operator: *const Token, right: Expr) Self {
+    pub fn init(left: *const Expr, operator: *const Token, right: *const Expr) Self {
         return .{
             .left = left,
             .operator = operator,
@@ -159,38 +181,18 @@ pub const Binary = struct {
         };
     }
 
-    pub fn create(
-        allocator: std.mem.Allocator,
-        left: Expr,
-        operator: *const Token,
-        right: Expr,
-    ) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(left, operator, right);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .BINARY,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitBinaryExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitBinaryExpr(expr);
     }
 };
 
 pub const Call = struct {
     const Self = @This();
-    callee: Expr,
+    callee: *const Expr,
     paren: *const Token,
-    arguments: std.ArrayList(Expr),
+    arguments: std.ArrayList(*const Expr),
 
-    pub fn init(callee: Expr, paren: *const Token, arguments: std.ArrayList(Expr)) Self {
+    pub fn init(callee: *const Expr, paren: *const Token, arguments: std.ArrayList(*const Expr)) Self {
         return .{
             .callee = callee,
             .paren = paren,
@@ -198,90 +200,40 @@ pub const Call = struct {
         };
     }
 
-    pub fn create(
-        allocator: std.mem.Allocator,
-        callee: Expr,
-        paren: *const Token,
-        arguments: std.ArrayList(Expr),
-    ) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(callee, paren, arguments);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .CALL,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitCallExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitCallExpr(expr);
     }
 };
 
 pub const Get = struct {
     const Self = @This();
-    object: Expr,
+    object: *const Expr,
     name: *const Token,
 
-    pub fn init(object: Expr, name: *const Token) Self {
+    pub fn init(object: *const Expr, name: *const Token) Self {
         return .{
             .object = object,
             .name = name,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, object: Expr, name: *const Token) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(object, name);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .GET,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitGetExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitGetExpr(expr);
     }
 };
 
 pub const Grouping = struct {
     const Self = @This();
-    expression: Expr,
+    expression: *const Expr,
 
-    pub fn init(expression: Expr) Self {
+    pub fn init(expression: *const Expr) Self {
         return .{
             .expression = expression,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, expression: Expr) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(expression);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .GROUPING,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitGroupingExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitGroupingExpr(expr);
     }
 };
 
@@ -295,33 +247,18 @@ pub const Literal = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, value: Object) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(value);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .LITERAL,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitLiteralExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitLiteralExpr(expr);
     }
 };
 
 pub const Logical = struct {
     const Self = @This();
-    left: Expr,
+    left: *const Expr,
     operator: *const Token,
-    right: Expr,
+    right: *const Expr,
 
-    pub fn init(left: Expr, operator: *const Token, right: Expr) Self {
+    pub fn init(left: *const Expr, operator: *const Token, right: *const Expr) Self {
         return .{
             .left = left,
             .operator = operator,
@@ -329,33 +266,18 @@ pub const Logical = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, left: Expr, operator: *const Token, right: Expr) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(left, operator, right);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .LOGICAL,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitLogicalExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitLogicalExpr(expr);
     }
 };
 
 pub const Set = struct {
     const Self = @This();
-    object: Expr,
+    object: *const Expr,
     name: *const Token,
-    value: Expr,
+    value: *const Expr,
 
-    pub fn init(object: Expr, name: *const Token, value: Expr) Self {
+    pub fn init(object: *const Expr, name: *const Token, value: *const Expr) Self {
         return .{
             .object = object,
             .name = name,
@@ -363,23 +285,8 @@ pub const Set = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, object: Expr, name: *const Token, value: Expr) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(object, name, value);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .SET,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitSetExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitSetExpr(expr);
     }
 };
 
@@ -395,23 +302,8 @@ pub const Super = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: *const Token, method: *const Token) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(keyword, method);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .SUPER,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitSuperExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitSuperExpr(expr);
     }
 };
 
@@ -424,56 +316,26 @@ pub const This = struct {
             .keyword = keyword,
         };
     }
-
-    pub fn create(allocator: std.mem.Allocator, keyword: *const Token) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(keyword);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .THIS,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitThisExpr(self);
+    
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitThisExpr(expr);
     }
 };
 
 pub const Unary = struct {
     const Self = @This();
     operator: *const Token,
-    right: Expr,
+    right: *const Expr,
 
-    pub fn init(operator: *const Token, right: Expr) Self {
+    pub fn init(operator: *const Token, right: *const Expr) Self {
         return .{
             .operator = operator,
             .right = right,
         };
     }
-
-    pub fn create(allocator: std.mem.Allocator, operator: *const Token, right: Expr) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(operator, right);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .UNARY,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitUnaryExpr(self);
+    
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitUnaryExpr(expr);
     }
 };
 
@@ -487,43 +349,25 @@ pub const Variable = struct {
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, name: *const Token) *Self {
-        var ptr = allocator.create(Self) catch unreachable;
-        ptr.* = Self.init(name);
-        return ptr;
-    }
-
-    pub fn toExpr(self: *const Self) Expr {
-        return .{
-            .impl = @ptrCast(*const anyopaque, self),
-            .acceptFn = accept,
-            .expr_type = .VARIABLE,
-        };
-    }
-
-    fn accept(ptr: *const anyopaque, visitor: *VisitorInterface) anyerror!void {
-        const self = castToConstSelf(Self, ptr);
-        try visitor.visitVariableExpr(self);
+    fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
+        try visitor.visitVariableExpr(expr);
     }
 };
 
 test "Expr.ptrs" {
     const a = std.testing.allocator;
-    var x = Literal.create(a, Object.initNil());
-    var interface = x.toExpr();
-    try std.testing.expect(interface.expr_type == .LITERAL);
-    std.debug.print("\n", .{});
-    try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
-    std.debug.print("x: {*}\n", .{x});
-    std.debug.print("&x: {}\n", .{&x});
-    std.debug.print("impl {*}\n", .{(interface.impl)});
-    std.debug.print("&impl {}\n", .{&(interface.impl)});
-    a.destroy(x);
-    x = Literal.create(a, Object.initNil());
-    //try std.testing.expect(@ptrToInt(x) == @ptrToInt(interface.impl));
-    std.debug.print("x: {*}\n", .{x});
-    std.debug.print("&x: {}\n", .{&x});
-    std.debug.print("impl {*}\n", .{(interface.impl)});
-    std.debug.print("&impl {}\n", .{&(interface.impl)});
-    a.destroy(x);
+    var x = Expr.create(a, Literal.init(Object.initNil()));
+    defer a.destroy(x);
+    try std.testing.expect(x.* == .literal);
+    var y = Expr.create(a, Literal.init(Object.initNil()));
+    defer a.destroy(y);
+    var token = Token{
+        .token_type = .MINUS,
+        .lexeme = "-",
+        .literal = Object.initNil(),
+        .line = 1,
+    };
+    var z = Expr.create(a, Binary.init(x, &token, y));
+    defer a.destroy(z);
+    try std.testing.expect(z.* == .binary);
 }

@@ -147,9 +147,9 @@ pub const Class = struct {
 
 pub const Expression = struct {
     const Self = @This();
-    expression: Expr.Expr,
+    expression: *const Expr.Expr,
 
-    pub fn init(expression: Expr.Expr) Self {
+    pub fn init(expression: *const Expr.Expr) Self {
         return .{
             .expression = expression,
         };
@@ -157,7 +157,7 @@ pub const Expression = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        expression: Expr.Expr,
+        expression: *const Expr.Expr,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(expression);
@@ -217,11 +217,11 @@ pub const Function = struct {
 
 pub const If = struct {
     const Self = @This();
-    condition: Expr.Expr,
+    condition: *const Expr.Expr,
     then_branch: Stmt,
     else_branch: ?Stmt,
 
-    pub fn init(condition: Expr.Expr, then_branch: Stmt, else_branch: ?Stmt) Self {
+    pub fn init(condition: *const Expr.Expr, then_branch: Stmt, else_branch: ?Stmt) Self {
         return .{
             .condition = condition,
             .then_branch = then_branch,
@@ -231,7 +231,7 @@ pub const If = struct {
 
     pub fn create(
         allocator: std.mem.Allocator,
-        condition: Expr.Expr,
+        condition: *const Expr.Expr,
         then_branch: Stmt,
         else_branch: ?Stmt,
     ) *Self {
@@ -255,15 +255,15 @@ pub const If = struct {
 
 pub const Print = struct {
     const Self = @This();
-    expression: Expr.Expr,
+    expression: *const Expr.Expr,
 
-    pub fn init(expression: Expr.Expr) Self {
+    pub fn init(expression: *const Expr.Expr) Self {
         return .{
             .expression = expression,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, expression: Expr.Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, expression: *const Expr.Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(expression);
         return ptr;
@@ -285,16 +285,16 @@ pub const Print = struct {
 pub const Return = struct {
     const Self = @This();
     keyword: *const Token,
-    value: ?Expr.Expr,
+    value: ?*const Expr.Expr,
 
-    pub fn init(keyword: *const Token, value: ?Expr.Expr) Self {
+    pub fn init(keyword: *const Token, value: ?*const Expr.Expr) Self {
         return .{
             .keyword = keyword,
             .value = value,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, keyword: *const Token, value: ?Expr.Expr) *Self {
+    pub fn create(allocator: std.mem.Allocator, keyword: *const Token, value: ?*const Expr.Expr) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(keyword, value);
         return ptr;
@@ -316,9 +316,9 @@ pub const Return = struct {
 pub const Var = struct {
     const Self = @This();
     name: *const Token,
-    initializer: ?Expr.Expr,
+    initializer: ?*const Expr.Expr,
 
-    pub fn init(name: *const Token, initializer: ?Expr.Expr) Self {
+    pub fn init(name: *const Token, initializer: ?*const Expr.Expr) Self {
         return .{
             .name = name,
             .initializer = initializer,
@@ -328,7 +328,7 @@ pub const Var = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         name: *const Token,
-        initializer: ?Expr.Expr,
+        initializer: ?*const Expr.Expr,
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(name, initializer);
@@ -350,17 +350,17 @@ pub const Var = struct {
 
 pub const While = struct {
     const Self = @This();
-    condition: Expr.Expr,
+    condition: *const Expr.Expr,
     body: Stmt,
 
-    pub fn init(condition: Expr.Expr, body: Stmt) Self {
+    pub fn init(condition: *const Expr.Expr, body: Stmt) Self {
         return .{
             .condition = condition,
             .body = body,
         };
     }
 
-    pub fn create(allocator: std.mem.Allocator, condition: Expr.Expr, body: Stmt) *Self {
+    pub fn create(allocator: std.mem.Allocator, condition: *const Expr.Expr, body: Stmt) *Self {
         var ptr = allocator.create(Self) catch unreachable;
         ptr.* = Self.init(condition, body);
         return ptr;
