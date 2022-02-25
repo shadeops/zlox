@@ -73,11 +73,10 @@ pub const Parser = struct {
     fn classDeclaration(self: *Self) ParseError!Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect class name.");
 
-        var superclass: ?*Expr.Variable = null;
+        var superclass: ?*const Expr.Expr= null;
         if (self.match(&.{.LESS})) {
             _ = try self.consume(.IDENTIFIER, "Expect superclass name.");
-            superclass = try self.allocator.create(Expr.Variable);
-            superclass.?.* = Expr.Variable.init(self.previous());
+            superclass = Expr.Expr.create(self.allocator, Expr.Variable.init(self.previous()));
         }
 
         _ = try self.consume(.LEFT_BRACE, "Expect '{' before class body.");

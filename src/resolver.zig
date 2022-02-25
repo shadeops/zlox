@@ -185,17 +185,14 @@ pub const Resolver = struct {
         try self.define(stmt.name);
 
         if (stmt.superclass != null and
-            std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.name.lexeme))
+            std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.variable.name.lexeme))
         {
-            Lox.tokenError(stmt.superclass.?.name, "A class can't inherit from itself.");
+            Lox.tokenError(stmt.superclass.?.variable.name, "A class can't inherit from itself.");
         }
 
         if (stmt.superclass != null) {
             current_class = .SUBCLASS;
-            // might need to allocate this
-            //var expr = @as(*const Expr.Expr, &Expr.Expr{.variable = stmt.superclass.?.*});
-            var expr:*const Expr.Expr = Expr.Expr.create(self.allocator, stmt.superclass.?.*);
-            try self.resolve(expr);
+            try self.resolve(stmt.superclass.?);
         }
 
         if (stmt.superclass != null) {

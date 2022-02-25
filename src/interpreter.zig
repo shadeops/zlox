@@ -426,11 +426,10 @@ pub const Interpreter = struct {
         var superclass: ?*const LoxClass = null;
         if (stmt.superclass != null) {
             
-            var expr = Expr.Expr.create(self.allocator, stmt.superclass.?.*);
-            var superclass_obj = try self.evaluate(expr);
+            var superclass_obj = try self.evaluate(stmt.superclass.?);
             if (superclass_obj != .callable or superclass_obj.callable.callable_type != .CLASS) {
                 std.log.err("Superclass must be a class.", .{});
-                runtimeError(stmt.superclass.?.name);
+                runtimeError(stmt.superclass.?.variable.name);
                 return error.Class;
             } else {
                 const alignment = @alignOf(LoxClass);

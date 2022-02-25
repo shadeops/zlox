@@ -102,12 +102,12 @@ pub const Block = struct {
 pub const Class = struct {
     const Self = @This();
     name: *const Token,
-    superclass: ?*Expr.Variable,
+    superclass: ?*const Expr.Expr,
     methods: std.ArrayList(*const Function),
 
     pub fn init(
         name: *const Token,
-        superclass: ?*Expr.Variable,
+        superclass: ?*const Expr.Expr,
         methods: std.ArrayList(*const Function),
     ) Self {
         return .{
@@ -120,7 +120,7 @@ pub const Class = struct {
     pub fn create(
         allocator: std.mem.Allocator,
         name: *const Token,
-        superclass: ?*Expr.Variable,
+        superclass: ?*const Expr.Expr,
         methods: std.ArrayList(*const Function),
     ) *Self {
         var ptr = allocator.create(Self) catch unreachable;
