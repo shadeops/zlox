@@ -126,7 +126,7 @@ pub const Interpreter = struct {
         };
     }
 
-    pub fn interpret(self: *Self, statements: std.ArrayList(Stmt.Stmt)) void {
+    pub fn interpret(self: *Self, statements: std.ArrayList(*const Stmt.Stmt)) void {
         for (statements.items) |statement| {
             self.execute(statement) catch |err| {
                 std.log.debug("RuntimeError: {s}", .{@errorName(err)});
@@ -385,7 +385,7 @@ pub const Interpreter = struct {
         return self.ret orelse unreachable;
     }
 
-    fn execute(self: *Self, stmt: Stmt.Stmt) !void {
+    fn execute(self: *Self, stmt: *const Stmt.Stmt) !void {
         var iface = self.stmtInterface();
         try stmt.accept(&iface);
     }
@@ -396,7 +396,7 @@ pub const Interpreter = struct {
 
     pub fn executeBlock(
         self: *Self,
-        statements: std.ArrayList(Stmt.Stmt),
+        statements: std.ArrayList(*const Stmt.Stmt),
         environment: *Environment,
     ) !void {
         var previous = self.environment;
@@ -408,7 +408,7 @@ pub const Interpreter = struct {
         }
     }
 
-    fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
+    fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
@@ -416,20 +416,19 @@ pub const Interpreter = struct {
         defer self.allocator.destroy(environment);
         environment.* = Environment.init(self.allocator);
         environment.enclosing = self.environment;
-        try self.executeBlock(stmt.statements, environment);
+        try self.executeBlock(stmt.block.statements, environment);
     }
 
-    fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
+    fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
         var superclass: ?*const LoxClass = null;
-        if (stmt.superclass != null) {
-            
-            var superclass_obj = try self.evaluate(stmt.superclass.?);
+        if (stmt.class.superclass != null) {
+            var superclass_obj = try self.evaluate(stmt.class.superclass.?);
             if (superclass_obj != .callable or superclass_obj.callable.callable_type != .CLASS) {
                 std.log.err("Superclass must be a class.", .{});
-                runtimeError(stmt.superclass.?.variable.name);
+                runtimeError(stmt.class.superclass.?.variable.name);
                 return error.Class;
             } else {
                 const alignment = @alignOf(LoxClass);
@@ -440,9 +439,9 @@ pub const Interpreter = struct {
             }
         }
 
-        self.environment.define(stmt.name.lexeme, Object.initNil());
+        self.environment.define(stmt.class.name.lexeme, Object.initNil());
 
-        if (stmt.superclass != null) {
+        if (stmt.class.superclass != null) {
             var new_environment = try self.allocator.create(Environment);
             new_environment.* = Environment.init(self.allocator);
             new_environment.enclosing = self.environment;
@@ -455,7 +454,7 @@ pub const Interpreter = struct {
 
         var methods = self.allocator.create(std.StringHashMap(*const LoxFunction)) catch unreachable;
         methods.* = std.StringHashMap(*const LoxFunction).init(self.allocator);
-        for (stmt.methods.items) |method| {
+        for (stmt.class.methods.items) |method| {
             var function = LoxFunction.create(
                 self.allocator,
                 method,
@@ -468,7 +467,7 @@ pub const Interpreter = struct {
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
         callable_ptr.* = LoxClass.create(
             self.allocator,
-            stmt.name.lexeme,
+            stmt.class.name.lexeme,
             superclass,
             methods,
         ).toCallable();
@@ -478,53 +477,53 @@ pub const Interpreter = struct {
             self.environment = self.environment.enclosing.?;
         }
 
-        try self.environment.assign(stmt.name, callable);
+        try self.environment.assign(stmt.class.name, callable);
     }
 
-    fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
+    fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
-        _ = try self.evaluate(stmt.expression);
+        _ = try self.evaluate(stmt.expression.expression);
     }
 
-    fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Function) anyerror!void {
+    fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
         var callable_ptr = self.allocator.create(LoxCallable) catch unreachable;
         callable_ptr.* = LoxFunction.create(
             self.allocator,
-            stmt,
+            &stmt.function,
             self.environment,
             false,
         ).toCallable();
         var function = Object.initCallable(callable_ptr);
-        self.environment.define(stmt.name.lexeme, function);
+        self.environment.define(stmt.function.name.lexeme, function);
     }
 
-    fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
+    fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
-        if (isTruthy(try self.evaluate(stmt.condition))) {
-            try self.execute(stmt.then_branch);
-        } else if (stmt.else_branch != null) {
-            try self.execute(stmt.else_branch.?);
+        if (isTruthy(try self.evaluate(stmt.if_s.condition))) {
+            try self.execute(stmt.if_s.then_branch);
+        } else if (stmt.if_s.else_branch != null) {
+            try self.execute(stmt.if_s.else_branch.?);
         }
     }
 
-    fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Print) anyerror!void {
+    fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
-        var value = try self.evaluate(stmt.expression);
+        var value = try self.evaluate(stmt.print.expression);
         self.stringify(value);
     }
 
-    fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
+    fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
         var value = Object.initNil();
-        if (stmt.value != null)
-            value = try self.evaluate(stmt.value.?);
+        if (stmt.return_s.value != null)
+            value = try self.evaluate(stmt.return_s.value.?);
 
         self.ret = value;
         // Horrible control flow hack that jlox uses. Use an exception to walk
@@ -533,24 +532,24 @@ pub const Interpreter = struct {
         return error.ReturnValue;
     }
 
-    fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {
+    fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
         var value = Object.initNil();
-        if (stmt.initializer != null) {
-            value = try self.evaluate(stmt.initializer.?);
+        if (stmt.var_s.initializer != null) {
+            value = try self.evaluate(stmt.var_s.initializer.?);
         }
 
-        self.environment.define(stmt.name.lexeme, value);
+        self.environment.define(stmt.var_s.name.lexeme, value);
     }
 
-    fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
+    fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.ret = null;
 
-        while (isTruthy(try self.evaluate(stmt.condition))) {
-            try self.execute(stmt.body);
+        while (isTruthy(try self.evaluate(stmt.while_s.condition))) {
+            try self.execute(stmt.while_s.body);
         }
     }
 

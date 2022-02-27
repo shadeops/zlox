@@ -168,41 +168,44 @@ pub const Resolver = struct {
         try self.resolveLocal(expr, expr.variable.name);
     }
 
-    fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Block) anyerror!void {
+    fn visitBlockStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         self.beginScope();
-        try self.resolve(stmt.statements);
+        try self.resolve(stmt.block.statements);
         self.endScope();
     }
 
-    fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Class) anyerror!void {
+    fn visitClassStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
 
         var enclosing_class = current_class;
         current_class = .CLASS;
 
-        try self.declare(stmt.name);
-        try self.define(stmt.name);
+        try self.declare(stmt.class.name);
+        try self.define(stmt.class.name);
 
-        if (stmt.superclass != null and
-            std.mem.eql(u8, stmt.name.lexeme, stmt.superclass.?.variable.name.lexeme))
+        if (stmt.class.superclass != null and
+            std.mem.eql(u8, stmt.class.name.lexeme, stmt.class.superclass.?.variable.name.lexeme))
         {
-            Lox.tokenError(stmt.superclass.?.variable.name, "A class can't inherit from itself.");
+            Lox.tokenError(
+                stmt.class.superclass.?.variable.name,
+                "A class can't inherit from itself.",
+            );
         }
 
-        if (stmt.superclass != null) {
+        if (stmt.class.superclass != null) {
             current_class = .SUBCLASS;
-            try self.resolve(stmt.superclass.?);
+            try self.resolve(stmt.class.superclass.?);
         }
 
-        if (stmt.superclass != null) {
+        if (stmt.class.superclass != null) {
             self.beginScope();
             try self.scopePeek().put("super", true);
         }
 
         self.beginScope();
         try self.scopePeek().put("this", true);
-        for (stmt.methods.items) |method| {
+        for (stmt.class.methods.items) |method| {
             var declaration = FunctionType.METHOD;
             if (std.mem.eql(u8, method.name.lexeme, "init")) {
                 declaration = .INITIALIZER;
@@ -211,69 +214,73 @@ pub const Resolver = struct {
         }
         self.endScope();
 
-        if (stmt.superclass != null) {
+        if (stmt.class.superclass != null) {
             self.endScope();
         }
 
         current_class = enclosing_class;
     }
 
-    fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Expression) anyerror!void {
+    fn visitExpressionStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(stmt.expression);
+        try self.resolve(stmt.expression.expression);
     }
 
-    fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Function) anyerror!void {
+    fn visitFunctionStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.declare(stmt.name);
-        try self.define(stmt.name);
-        try self.resolveFunction(stmt, .FUNCTION);
+        try self.declare(stmt.function.name);
+        try self.define(stmt.function.name);
+        // is this legal? address of a union field?
+        try self.resolveFunction(&stmt.function, .FUNCTION);
     }
 
-    fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.If) anyerror!void {
+    fn visitIfStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(stmt.condition);
-        try self.resolve(stmt.then_branch);
-        if (stmt.else_branch != null)
-            try self.resolve(stmt.else_branch.?);
+        try self.resolve(stmt.if_s.condition);
+        try self.resolve(stmt.if_s.then_branch);
+        if (stmt.if_s.else_branch != null)
+            try self.resolve(stmt.if_s.else_branch.?);
     }
 
-    fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Print) anyerror!void {
+    fn visitPrintStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(stmt.expression);
+        try self.resolve(stmt.print.expression);
     }
 
-    fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Return) anyerror!void {
+    fn visitReturnStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
         if (self.current_function == .NONE) {
-            Lox.tokenError(stmt.keyword, "Can't return from top-level code.");
+            Lox.tokenError(stmt.return_s.keyword, "Can't return from top-level code.");
         }
 
-        if (stmt.value != null) {
+        if (stmt.return_s.value != null) {
             if (self.current_function == .INITIALIZER) {
-                Lox.tokenError(stmt.keyword, "Can't return a value from an initializer.");
+                Lox.tokenError(
+                    stmt.return_s.keyword,
+                    "Can't return a value from an initializer.",
+                );
             }
-            try self.resolve(stmt.value.?);
+            try self.resolve(stmt.return_s.value.?);
         }
     }
 
-    fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Var) anyerror!void {
+    fn visitVarStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.declare(stmt.name);
-        if (stmt.initializer != null) {
-            try self.resolve(stmt.initializer.?);
+        try self.declare(stmt.var_s.name);
+        if (stmt.var_s.initializer != null) {
+            try self.resolve(stmt.var_s.initializer.?);
         }
-        try self.define(stmt.name);
+        try self.define(stmt.var_s.name);
     }
-    fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.While) anyerror!void {
+    fn visitWhileStmt(ptr: *anyopaque, stmt: *const Stmt.Stmt) anyerror!void {
         const self = castToSelf(Self, ptr);
-        try self.resolve(stmt.condition);
-        try self.resolve(stmt.body);
+        try self.resolve(stmt.while_s.condition);
+        try self.resolve(stmt.while_s.body);
     }
 
     pub fn resolve(self: *Self, thing: anytype) !void {
         switch (@TypeOf(thing)) {
-            Stmt.Stmt => {
+            *const Stmt.Stmt => {
                 var iface = self.stmtInterface();
                 try thing.accept(&iface);
             },
@@ -281,7 +288,7 @@ pub const Resolver = struct {
                 var iface = self.exprInterface();
                 try thing.accept(&iface);
             },
-            std.ArrayList(Stmt.Stmt) => {
+            std.ArrayList(*const Stmt.Stmt) => {
                 for (thing.items) |item| {
                     try self.resolve(item);
                 }
@@ -339,7 +346,7 @@ pub const Resolver = struct {
         try scope.put(name.lexeme, true);
     }
 
-    fn resolveLocal(self: *Self, expr:*const Expr.Expr, name: *const Token) !void {
+    fn resolveLocal(self: *Self, expr: *const Expr.Expr, name: *const Token) !void {
         for (self.scopes.items) |_, idx| {
             var i = (self.scopes.items.len - 1) - idx;
             if (self.scopes.items[i].contains(name.lexeme)) {

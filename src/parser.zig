@@ -28,8 +28,8 @@ pub const Parser = struct {
         };
     }
 
-    pub fn parse(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
-        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
+    pub fn parse(self: *Self) ParseError!std.ArrayList(*const Stmt.Stmt) {
+        var statements = std.ArrayList(*const Stmt.Stmt).init(self.allocator);
         while (!self.isAtEnd()) {
             // NOTE:
             //  * In jlox we just append to the statements if it is a null
@@ -50,7 +50,7 @@ pub const Parser = struct {
     // and if there is an error do a synchronize(). Since we can't
     // do block try/catch and to avoid having to add a catch to each
     // function call, we'll just wrap the entire function.
-    fn declarationWithErrors(self: *Self) ParseError!?Stmt.Stmt {
+    fn declarationWithErrors(self: *Self) ParseError!?*const Stmt.Stmt {
         if (self.match(&.{.CLASS})) {
             return try self.classDeclaration();
         }
@@ -63,17 +63,17 @@ pub const Parser = struct {
         return try self.statement();
     }
 
-    fn declaration(self: *Self) ?Stmt.Stmt {
+    fn declaration(self: *Self) ?*const Stmt.Stmt {
         return self.declarationWithErrors() catch {
             self.synchronize();
             return null;
         };
     }
 
-    fn classDeclaration(self: *Self) ParseError!Stmt.Stmt {
+    fn classDeclaration(self: *Self) ParseError!*const Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect class name.");
 
-        var superclass: ?*const Expr.Expr= null;
+        var superclass: ?*const Expr.Expr = null;
         if (self.match(&.{.LESS})) {
             _ = try self.consume(.IDENTIFIER, "Expect superclass name.");
             superclass = Expr.Expr.create(self.allocator, Expr.Variable.init(self.previous()));
@@ -83,31 +83,31 @@ pub const Parser = struct {
 
         var methods = std.ArrayList(*const Stmt.Function).init(self.allocator);
         while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
-            var func_stmt = try self.function("method");
-            const alignment = @alignOf(Stmt.Function);
-            var func = @ptrCast(*const Stmt.Function, @alignCast(alignment, func_stmt.impl));
-            try methods.append(func);
+            var func_stmt: *const Stmt.Stmt = try self.function("method");
+            // This might not be allowed
+            // "Bare unions cannot be used to reinterpret memory"?
+            try methods.append(&func_stmt.function);
         }
         _ = try self.consume(.RIGHT_BRACE, "Expect '}' after class body.");
-        return Stmt.Class.create(self.allocator, name, superclass, methods).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Class.init(name, superclass, methods));
     }
 
-    fn statement(self: *Self) ParseError!Stmt.Stmt {
+    fn statement(self: *Self) ParseError!*const Stmt.Stmt {
         if (self.match(&.{.FOR})) return self.forStatement();
         if (self.match(&.{.IF})) return self.ifStatement();
         if (self.match(&.{.PRINT})) return self.printStatement();
         if (self.match(&.{.RETURN})) return self.returnStatement();
         if (self.match(&.{.WHILE})) return self.whileStatement();
         if (self.match(&.{.LEFT_BRACE}))
-            return Stmt.Block.create(self.allocator, try self.block()).toStmt();
+            return Stmt.Stmt.create(self.allocator, Stmt.Block.init(try self.block()));
 
         return self.expressionStatement();
     }
 
-    fn forStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn forStatement(self: *Self) ParseError!*const Stmt.Stmt {
         _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'for'.");
 
-        var initializer: ?Stmt.Stmt = null;
+        var initializer: ?*const Stmt.Stmt = null;
         if (self.match(&.{.SEMICOLON})) {
             initializer = null;
         } else if (self.match(&.{.VAR})) {
@@ -132,58 +132,61 @@ pub const Parser = struct {
         var body = try self.statement();
 
         if (increment != null) {
-            var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
+            var list = std.ArrayList(*const Stmt.Stmt).init(self.allocator);
             try list.append(body);
-            try list.append(Stmt.Expression.create(self.allocator, increment.?).toStmt());
-            body = Stmt.Block.create(self.allocator, list).toStmt();
+            try list.append(Stmt.Stmt.create(self.allocator, Stmt.Expression.init(increment.?)));
+            body = Stmt.Stmt.create(self.allocator, Stmt.Block.init(list));
         }
 
         if (condition == null)
-            condition = Expr.Expr.create(self.allocator, Expr.Literal.init(Object.initBoolean(true)));
-        body = Stmt.While.create(self.allocator, condition.?, body).toStmt();
+            condition = Expr.Expr.create(
+                self.allocator,
+                Expr.Literal.init(Object.initBoolean(true)),
+            );
+        body = Stmt.Stmt.create(self.allocator, Stmt.While.init(condition.?, body));
 
         if (initializer != null) {
-            var list = std.ArrayList(Stmt.Stmt).init(self.allocator);
+            var list = std.ArrayList(*const Stmt.Stmt).init(self.allocator);
             try list.append(initializer.?);
             try list.append(body);
-            body = Stmt.Block.create(self.allocator, list).toStmt();
+            body = Stmt.Stmt.create(self.allocator, Stmt.Block.init(list));
         }
 
         return body;
     }
 
-    fn ifStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn ifStatement(self: *Self) ParseError!*const Stmt.Stmt {
         _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'if'.");
         var condition = try self.expression();
         _ = try self.consume(.RIGHT_PAREN, "Expect ')' after 'if'.");
 
         var then_branch = try self.statement();
-        var else_branch: ?Stmt.Stmt = null;
+        var else_branch: ?*const Stmt.Stmt = null;
 
         if (self.match(&.{.ELSE})) {
             else_branch = try self.statement();
         }
 
-        return Stmt.If.create(self.allocator, condition, then_branch, else_branch).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.If.init(condition, then_branch, else_branch));
     }
 
-    fn printStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn printStatement(self: *Self) ParseError!*const Stmt.Stmt {
         var value = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after value.");
-        return Stmt.Print.create(self.allocator, value).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Print.init(value));
     }
 
-    fn returnStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn returnStatement(self: *Self) ParseError!*const Stmt.Stmt {
         var keyword = self.previous();
         var value: ?*const Expr.Expr = null;
         if (!self.check(.SEMICOLON)) {
             value = try self.expression();
         }
         _ = try self.consume(.SEMICOLON, "Expect ';' after return value.");
-        return Stmt.Return.create(self.allocator, keyword, value).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Return.init(keyword, value));
     }
 
-    fn varDeclaration(self: *Self) ParseError!Stmt.Stmt {
+    fn varDeclaration(self: *Self) ParseError!*const Stmt.Stmt {
         var name = try self.consume(.IDENTIFIER, "Expect variable name.");
 
         var initializer: ?*const Expr.Expr = null;
@@ -191,35 +194,43 @@ pub const Parser = struct {
             initializer = try self.expression();
         }
         _ = try self.consume(.SEMICOLON, "Expect ';' after variable declaration");
-        return Stmt.Var.create(self.allocator, name, initializer).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Var.init(name, initializer));
     }
 
-    fn whileStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn whileStatement(self: *Self) ParseError!*const Stmt.Stmt {
         _ = try self.consume(.LEFT_PAREN, "Expect '(' after 'while'.");
         var condition = try self.expression();
         _ = try self.consume(.RIGHT_PAREN, "Expect ')' after 'condition'.");
         var body = try self.statement();
 
-        return Stmt.While.create(self.allocator, condition, body).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.While.init(condition, body));
     }
 
-    fn expressionStatement(self: *Self) ParseError!Stmt.Stmt {
+    fn expressionStatement(self: *Self) ParseError!*const Stmt.Stmt {
         var expr = try self.expression();
         _ = try self.consume(.SEMICOLON, "Expect ';' after expression.");
-        return Stmt.Expression.create(self.allocator, expr).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Expression.init(expr));
     }
 
-    fn function(self: *Self, kind: []const u8) ParseError!Stmt.Stmt {
+    fn function(self: *Self, kind: []const u8) ParseError!*const Stmt.Stmt {
 
         // limit function name to 128 chars to avoid allocation
         var buf: [256]u8 = undefined;
         var kind_len = @minimum(kind.len, 128);
         var result: []const u8 = undefined;
 
-        result = std.fmt.bufPrint(buf[0..], "Expect {s} name.", .{kind[0..kind_len]}) catch unreachable;
+        result = std.fmt.bufPrint(
+            buf[0..],
+            "Expect {s} name.",
+            .{kind[0..kind_len]},
+        ) catch unreachable;
         var name = try self.consume(.IDENTIFIER, result);
 
-        result = std.fmt.bufPrint(buf[0..], "Expect '(' after {s} name.", .{kind[0..kind_len]}) catch unreachable;
+        result = std.fmt.bufPrint(
+            buf[0..],
+            "Expect '(' after {s} name.",
+            .{kind[0..kind_len]},
+        ) catch unreachable;
         _ = try self.consume(.LEFT_PAREN, result);
 
         var parameters = std.ArrayList(*const Token).init(self.allocator);
@@ -241,11 +252,11 @@ pub const Parser = struct {
         ) catch unreachable;
         _ = try self.consume(.LEFT_BRACE, result);
         var body = try self.block();
-        return Stmt.Function.create(self.allocator, name, parameters, body).toStmt();
+        return Stmt.Stmt.create(self.allocator, Stmt.Function.init(name, parameters, body));
     }
 
-    fn block(self: *Self) ParseError!std.ArrayList(Stmt.Stmt) {
-        var statements = std.ArrayList(Stmt.Stmt).init(self.allocator);
+    fn block(self: *Self) ParseError!std.ArrayList(*const Stmt.Stmt) {
+        var statements = std.ArrayList(*const Stmt.Stmt).init(self.allocator);
         while (!self.check(.RIGHT_BRACE) and !self.isAtEnd()) {
             // if we hit a null skip over it.
             try statements.append(self.declaration() orelse continue);
@@ -261,11 +272,17 @@ pub const Parser = struct {
             var equals = self.previous();
             var value = try self.assignment();
 
-            switch(expr.*) {
-                .variable => |val| return Expr.Expr.create(self.allocator, Expr.Assign.init(val.name, value)),
-                .get => |val| return Expr.Expr.create(self.allocator, Expr.Set.init(val.object, val.name, value)),
+            switch (expr.*) {
+                .variable => |val| return Expr.Expr.create(
+                    self.allocator,
+                    Expr.Assign.init(val.name, value),
+                ),
+                .get => |val| return Expr.Expr.create(
+                    self.allocator,
+                    Expr.Set.init(val.object, val.name, value),
+                ),
                 else => {},
-            } 
+            }
 
             try reportError(equals, "Invalid assignment target.");
         }

@@ -94,7 +94,7 @@ pub const ExprType = enum {
 ///     them. Additionally the visitor pattern is also using the interface pattern.
 ///  * It is a compile error to use !void instead of anyerror!void. We should be
 ///     able to define proper errors once we clean up our usages of try.
-pub const Expr = union (ExprType) {
+pub const Expr = union(ExprType) {
     const Self = @This();
 
     assign: Assign,
@@ -131,18 +131,18 @@ pub const Expr = union (ExprType) {
         var ptr = allocator.create(Self) catch unreachable;
 
         switch (@TypeOf(any_expr)) {
-            Assign => ptr.* = .{.assign = any_expr},
-            Binary => ptr.* = .{.binary = any_expr},
-            Call => ptr.* = .{.call = any_expr},
-            Get => ptr.* = .{.get = any_expr},
-            Grouping => ptr.* = .{.grouping = any_expr},
-            Literal => ptr.* = .{.literal = any_expr},
-            Logical => ptr.* = .{.logical = any_expr},
-            Set => ptr.* = .{.set = any_expr},
-            Super => ptr.* = .{.super = any_expr},
-            This => ptr.* = .{.this = any_expr},
-            Unary => ptr.* = .{.unary = any_expr},
-            Variable => ptr.* = .{.variable = any_expr},
+            Assign => ptr.* = .{ .assign = any_expr },
+            Binary => ptr.* = .{ .binary = any_expr },
+            Call => ptr.* = .{ .call = any_expr },
+            Get => ptr.* = .{ .get = any_expr },
+            Grouping => ptr.* = .{ .grouping = any_expr },
+            Literal => ptr.* = .{ .literal = any_expr },
+            Logical => ptr.* = .{ .logical = any_expr },
+            Set => ptr.* = .{ .set = any_expr },
+            Super => ptr.* = .{ .super = any_expr },
+            This => ptr.* = .{ .this = any_expr },
+            Unary => ptr.* = .{ .unary = any_expr },
+            Variable => ptr.* = .{ .variable = any_expr },
             else => @compileError("Not a valid Expr Type"),
         }
 
@@ -192,7 +192,11 @@ pub const Call = struct {
     paren: *const Token,
     arguments: std.ArrayList(*const Expr),
 
-    pub fn init(callee: *const Expr, paren: *const Token, arguments: std.ArrayList(*const Expr)) Self {
+    pub fn init(
+        callee: *const Expr,
+        paren: *const Token,
+        arguments: std.ArrayList(*const Expr),
+    ) Self {
         return .{
             .callee = callee,
             .paren = paren,
@@ -316,7 +320,7 @@ pub const This = struct {
             .keyword = keyword,
         };
     }
-    
+
     fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
         try visitor.visitThisExpr(expr);
     }
@@ -333,7 +337,7 @@ pub const Unary = struct {
             .right = right,
         };
     }
-    
+
     fn accept(expr: *const Expr, visitor: *VisitorInterface) anyerror!void {
         try visitor.visitUnaryExpr(expr);
     }
