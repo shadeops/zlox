@@ -75,7 +75,6 @@ fn runFile(allocator: std.mem.Allocator, path: []const u8) void {
 }
 
 fn runPrompt(allocator: std.mem.Allocator) void {
-    _ = allocator;
     const stdout = std.io.getStdOut();
     const stdin = std.io.getStdIn();
     const buf_size = 1024;
